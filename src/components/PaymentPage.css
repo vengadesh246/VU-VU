@@ -463,4 +463,162 @@
   .back-button:hover {
     color: #4CAF50;
   }
+}/* UPI Payment Section */
+.upi-payment-section {
+  margin: 25px 0;
+  padding: 20px;
+  background: #f8f9fa;
+  border-radius: 12px;
+  border: 2px solid #e0e0e0;
+}
+
+.upi-payment-section h3 {
+  color: #2c3e50;
+  margin-bottom: 15px;
+  font-size: 1.1rem;
+}
+
+.upi-details {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.upi-details p {
+  margin: 0;
+  font-size: 1rem;
+  color: #2c3e50;
+}
+
+.copy-upi-btn {
+  background: #3498db;
+  color: white;
+  border: none;
+  padding: 6px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.3s ease;
+}
+
+.copy-upi-btn:hover {
+  background: #2980b9;
+  transform: scale(1.05);
+}
+
+.qr-container {
+  text-align: center;
+  margin: 20px 0;
+}
+
+.qr-code {
+  width: 200px;
+  height: 200px;
+  border-radius: 12px;
+  border: 2px solid #ddd;
+  background: white;
+  padding: 5px;
+}
+
+.qr-hint {
+  color: #6c757d;
+  font-size: 0.85rem;
+  margin-top: 8px;
+}
+
+.upi-actions {
+  margin: 20px 0;
+  text-align: center;
+}
+
+.pay-now-btn {
+  padding: 12px 30px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  width: 100%;
+}
+
+.pay-now-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(102,126,234,0.4);
+}
+
+.pay-now-btn.processing {
+  background: #95a5a6;
+  cursor: not-allowed;
+}
+
+.payment-success {
+  background: #d4edda;
+  color: #155724;
+  padding: 12px;
+  border-radius: 8px;
+  font-weight: 600;
+}
+
+.upi-note {
+  margin-top: 10px;
+  padding: 10px;
+  background: #fff3cd;
+  border-radius: 8px;
+  border-left: 4px solid #ffc107;
+}
+
+.upi-note p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #856404;
+}
+
+.payment-hint {
+  color: #e74c3c;
+  font-size: 0.85rem;
+  margin-top: 8px;
+  text-align: center;
+}
+
+/* Dark mode adjustments */
+@media (prefers-color-scheme: dark) {
+  .upi-payment-section {
+    background: #1a1a2e;
+    border-color: #3d3d5c;
+  }
+  .upi-payment-section h3 {
+    color: #e0e0e0;
+  }
+  .upi-details p {
+    color: #e0e0e0;
+  }
+  .copy-upi-btn {
+    background: #2980b9;
+  }
+  .qr-code {
+    border-color: #3d3d5c;
+    background: #2d2d44;
+  }
+  .qr-hint {
+    color: #b0b0b0;
+  }
+  .upi-note {
+    background: #1a1a2e;
+    border-left-color: #ffc107;
+  }
+  .upi-note p {
+    color: #ffb74d;
+  }
+  .payment-success {
+    background: #1a2e1a;
+    color: #4caf50;
+  }
+  .payment-hint {
+    color: #ff6b6b;
+  }
 }
