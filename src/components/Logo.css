@@ -1,0 +1,110 @@
+/* ============================================
+   LOGO - MOBILE FIRST
+   ============================================ */
+.logo-container {
+  padding: 8px 15px;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  border-radius: 12px;
+  border: 2px solid #61DAFB;
+  box-shadow: 0 4px 15px rgba(97,218,251,0.2);
+  display: inline-block;
+  max-width: 100%;
+  transition: all 0.3s ease;
+}
+.logo-container:hover {
+  border-color: #4CAF50;
+  box-shadow: 0 4px 20px rgba(76,175,80,0.3);
+}
+
+.logo-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.logo-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 15px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 8px;
+  border: 1px solid rgba(97,218,251,0.2);
+  flex: 1;
+  min-width: 0;
+}
+.logo-image {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+.logo-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.brand-name {
+  font-size: 20px;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: 1.5px;
+  background: linear-gradient(90deg, #61DAFB, #4CAF50);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tagline {
+  font-size: 10px;
+  color: #8892b0;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ============================================
+   RESPONSIVE
+   ============================================ */
+@media (max-width: 992px) {
+  .logo-container { padding: 8px 12px; }
+  .logo-content { gap: 10px; padding: 5px 12px; }
+  .logo-image { width: 35px; height: 35px; }
+  .brand-name { font-size: 18px; letter-spacing: 1px; }
+  .tagline { font-size: 9px; }
+}
+@media (max-width: 768px) {
+  .logo-container { padding: 6px 10px; border-radius: 10px; }
+  .logo-wrapper { gap: 5px; }
+  .logo-content { gap: 8px; padding: 4px 10px; }
+  .logo-image { width: 30px; height: 30px; border-radius: 6px; }
+  .brand-name { font-size: 16px; letter-spacing: 0.5px; }
+  .tagline { font-size: 8px; letter-spacing: 0.3px; }
+}
+@media (max-width: 480px) {
+  .logo-container { padding: 4px 8px; border-radius: 8px; border-width: 1.5px; }
+  .logo-wrapper { gap: 3px; }
+  .logo-content { gap: 6px; padding: 3px 8px; border-radius: 6px; }
+  .logo-image { width: 25px; height: 25px; border-radius: 4px; }
+  .brand-name { font-size: 13px; letter-spacing: 0.3px; }
+  .tagline { font-size: 7px; letter-spacing: 0.2px; }
+}
+@media (max-width: 360px) {
+  .logo-container { padding: 3px 6px; }
+  .logo-content { padding: 2px 6px; gap: 4px; }
+  .logo-image { width: 20px; height: 20px; }
+  .brand-name { font-size: 11px; letter-spacing: 0.2px; }
+  .tagline { font-size: 6px; }
+}
+
+/* ============================================
+   DARK MODE
+   ============================================ */
+@media (prefers-color-scheme: dark) {
+  .logo-container {
+    background: linear-gradient(135deg, #0a0a1a 0%, #1a1a2e 100%);
+  }
+}
