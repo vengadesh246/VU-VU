@@ -510,7 +510,7 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
       <header className="customer-header">
         <div className="header-content">
           <div>
-            <h1>🌾 Sowdammal Rice Mill</h1>
+            <h1>🌾 SRM </h1>
             <p className="customer-greeting">
               {isGuest ? '👋 Welcome, Guest User!' : `👋 Welcome, ${customerName}!`}
               {isGuest && <span className="guest-badge"> 🎭 Guest</span>}

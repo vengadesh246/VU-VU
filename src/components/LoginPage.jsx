@@ -180,7 +180,7 @@ function LoginPage({ onLogin }) {
   return (
     <div className="login-container">
       <div className="login-card">
-        <h2>🌾 Sowdammal Rice Mill</h2>
+        <h2>🌾 SRM </h2>
         <p className="login-subtitle">Welcome Back!</p>
 
         
