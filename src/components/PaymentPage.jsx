@@ -2,8 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import './PaymentPage.css';
 
-// 🔁 Replace this with your actual UPI ID
-const UPI_ID = 'your-upi@upi'; // e.g., 'example@paytm' or 'example@upi'
+// 🔁 Replace with your actual UPI ID
+const UPI_ID = 'sowdammalricemill246@okicici'; // e.g., 'example@paytm'
 
 function PaymentPage({ cart, shippingDetails, onBack, onConfirmPurchase }) {
   const [paymentMethod, setPaymentMethod] = useState('');
@@ -22,9 +22,39 @@ function PaymentPage({ cart, shippingDetails, onBack, onConfirmPurchase }) {
     getCustomerLocation();
   }, []);
 
-  // ... (location functions remain unchanged) ...
+  // ----- Location Functions -----
+  const getCustomerLocation = () => {
+    if (!navigator.geolocation) {
+      setLocationError('Geolocation is not supported by your browser.');
+      return;
+    }
+    setIsLoadingLocation(true);
+    setLocationError('');
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude, accuracy } = position.coords;
+        setCustomerLocation({ latitude, longitude, accuracy });
+        setIsLoadingLocation(false);
+      },
+      (error) => {
+        setIsLoadingLocation(false);
+        setLocationError('Unable to retrieve location. Please check your permissions.');
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
 
-  // Generate UPI deep link and QR code URL
+  const retryLocation = () => {
+    getCustomerLocation();
+  };
+
+  const generateGoogleMapsLink = () => {
+    if (!customerLocation) return '#';
+    const { latitude, longitude } = customerLocation;
+    return `https://www.google.com/maps?q=${latitude},${longitude}`;
+  };
+
+  // ----- UPI -----
   const getUpiUri = () => {
     const merchantName = encodeURIComponent('SRM Rice Store');
     const amount = totalAmount.toFixed(2);
@@ -36,6 +66,19 @@ function PaymentPage({ cart, shippingDetails, onBack, onConfirmPurchase }) {
     return `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(upiUri)}`;
   };
 
+  // ----- Share on WhatsApp -----
+  const shareOnWhatsApp = (method, amount) => {
+    const message = `✅ Order Confirmed!\n\n` +
+                    `Order Total: ₹${amount.toFixed(2)}\n` +
+                    `Payment Method: ${method === 'online' ? 'Online Payment (UPI)' : 'Cash on Delivery'}\n` +
+                    `Shipping Address: ${shippingDetails.address}, ${shippingDetails.city}, ${shippingDetails.state} - ${shippingDetails.pincode}\n` +
+                    `Thank you for shopping with SRM Rice Store! 🌾`;
+
+    const url = `https://wa.me/?text=${encodeURIComponent(message)}`;
+    window.open(url, '_blank');
+  };
+
+  // ----- Payment Handling -----
   const handlePayment = () => {
     if (!paymentMethod) {
       setErrors({ payment: 'Please select a payment method' });
@@ -47,7 +90,7 @@ function PaymentPage({ cart, shippingDetails, onBack, onConfirmPurchase }) {
       return;
     }
 
-    // If online payment, start UPI simulation
+    // Online payment flow
     if (paymentMethod === 'online') {
       setUpiPaymentStep('processing');
       setIsProcessing(true);
@@ -56,9 +99,7 @@ function PaymentPage({ cart, shippingDetails, onBack, onConfirmPurchase }) {
         setIsProcessing(false);
         setUpiPaymentStep('success');
         setOrderConfirmed(true);
-        // Share on WhatsApp after successful payment
         shareOnWhatsApp(paymentMethod, totalAmount);
-        // Confirm purchase with payment success flag
         onConfirmPurchase(paymentMethod, totalAmount, true);
       }, 2500);
       return;
@@ -74,30 +115,56 @@ function PaymentPage({ cart, shippingDetails, onBack, onConfirmPurchase }) {
     }, 2000);
   };
 
-  // ... (shareOnWhatsApp, retryLocation, generateGoogleMapsLink remain the same) ...
-
   return (
     <div className="payment-page">
-      <button className="back-button" onClick={onBack}>
-        ← Back to Shipping
-      </button>
+      <button className="back-button" onClick={onBack}>← Back to Shipping</button>
 
       <div className="payment-container">
         <h2>Payment</h2>
 
-        {/* Address Review (unchanged) */}
-        <div className="address-review">...</div>
+        {/* Address Review */}
+        <div className="address-review">
+          <h3>📍 Shipping Address</h3>
+          <p><strong>{shippingDetails.customerName}</strong></p>
+          <p>{shippingDetails.address}</p>
+          <p>{shippingDetails.city}, {shippingDetails.state} - {shippingDetails.pincode}</p>
+          {shippingDetails.landmark && <p>📍 Landmark: {shippingDetails.landmark}</p>}
+          <p>📱 {shippingDetails.mobileNumber}</p>
+          {customerLocation && (
+            <div className="location-link-container">
+              <a href={generateGoogleMapsLink()} target="_blank" rel="noopener noreferrer" className="maps-link">
+                🗺️ View on Google Maps
+              </a>
+            </div>
+          )}
+        </div>
 
-        {/* Order Review (unchanged) */}
-        <div className="order-review">...</div>
+        {/* Order Review */}
+        <div className="order-review">
+          <h3>🛒 Order Summary</h3>
+          {cart.map((item, index) => (
+            <div key={index} className="review-item">
+              <span>{item.productName} x {item.quantity}</span>
+              <span>₹{(item.finalPrice * item.quantity).toFixed(2)}</span>
+            </div>
+          ))}
+          <div className="review-total">Total: ₹{totalAmount.toFixed(2)}</div>
+        </div>
 
-        {/* Delivery Info (unchanged) */}
-        <div className="delivery-info">...</div>
+        {/* Delivery Info */}
+        <div className="delivery-info">
+          <span className="delivery-icon">🚚</span>
+          <div className="delivery-details">
+            <h4>Estimated Delivery</h4>
+            <p>Within 24 hours of order confirmation</p>
+            <p className="delivery-time">⏰ Free delivery</p>
+          </div>
+        </div>
 
         {/* Payment Methods */}
         <div className="payment-methods">
           <h3>Select Payment Method</h3>
-          
+
           <div className="payment-option">
             <label className="payment-label">
               <input
@@ -136,13 +203,13 @@ function PaymentPage({ cart, shippingDetails, onBack, onConfirmPurchase }) {
           {errors.payment && <span className="error">{errors.payment}</span>}
         </div>
 
-        {/* UPI Payment Section (shown only when online is selected) */}
+        {/* UPI Payment Section */}
         {paymentMethod === 'online' && (
           <div className="upi-payment-section">
             <h3>🔹 Pay with UPI</h3>
             <div className="upi-details">
               <p><strong>UPI ID:</strong> {UPI_ID}</p>
-              <button 
+              <button
                 className="copy-upi-btn"
                 onClick={() => {
                   navigator.clipboard.writeText(UPI_ID);
@@ -160,23 +227,15 @@ function PaymentPage({ cart, shippingDetails, onBack, onConfirmPurchase }) {
 
             <div className="upi-actions">
               {upiPaymentStep === 'idle' && (
-                <button 
-                  className="pay-now-btn"
-                  onClick={handlePayment}
-                  disabled={isProcessing}
-                >
+                <button className="pay-now-btn" onClick={handlePayment} disabled={isProcessing}>
                   💳 Pay ₹{totalAmount.toFixed(2)}
                 </button>
               )}
               {upiPaymentStep === 'processing' && (
-                <button className="pay-now-btn processing" disabled>
-                  ⏳ Processing Payment...
-                </button>
+                <button className="pay-now-btn processing" disabled>⏳ Processing Payment...</button>
               )}
               {upiPaymentStep === 'success' && (
-                <div className="payment-success">
-                  ✅ Payment Successful! Your order is confirmed.
-                </div>
+                <div className="payment-success">✅ Payment Successful! Your order is confirmed.</div>
               )}
             </div>
 
@@ -188,17 +247,17 @@ function PaymentPage({ cart, shippingDetails, onBack, onConfirmPurchase }) {
 
         {/* Confirm Purchase Button */}
         <div className="payment-actions">
-          <button 
+          <button
             onClick={handlePayment}
             className={`confirm-btn ${orderConfirmed ? 'confirmed' : ''}`}
             disabled={
-              isProcessing || 
-              orderConfirmed || 
+              isProcessing ||
+              orderConfirmed ||
               (paymentMethod === 'online' && upiPaymentStep !== 'success')
             }
           >
-            {isProcessing ? '⏳ Processing...' : 
-             orderConfirmed ? '✅ Order Confirmed!' : 
+            {isProcessing ? '⏳ Processing...' :
+             orderConfirmed ? '✅ Order Confirmed!' :
              paymentMethod === 'online' && upiPaymentStep === 'success' ? '✅ Place Order' :
              '✅ Confirm Purchase'}
           </button>
