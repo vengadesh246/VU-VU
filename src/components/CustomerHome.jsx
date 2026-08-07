@@ -3,6 +3,9 @@ import ShippingPage from './ShippingPage';
 import PaymentPage from './PaymentPage';
 import './CustomerHome.css';
 
+// 🔁 Replace with your actual UPI ID
+const UPI_ID = 'sowdammalricemill246@okicici';
+
 // Default products – same as AdminPanel
 const DEFAULT_PRODUCTS = [
   {
@@ -302,28 +305,18 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
   };
 
   const loadOrders = () => {
+    let savedOrders = [];
     if (isGuest) {
-      const guestOrders = JSON.parse(localStorage.getItem('guestOrders') || '[]');
-      setOrders(guestOrders);
-      const timers = {};
-      guestOrders.forEach(order => {
-        if (order.orderDate) timers[order.id] = calculateRemainingTime(order.orderDate);
-      });
-      setOrderTimers(timers);
+      savedOrders = JSON.parse(localStorage.getItem('guestOrders') || '[]');
     } else {
-      const savedOrders = localStorage.getItem(getCustomerKey('orders'));
-      if (savedOrders) {
-        const ordersData = JSON.parse(savedOrders);
-        setOrders(ordersData);
-        const timers = {};
-        ordersData.forEach(order => {
-          if (order.orderDate) timers[order.id] = calculateRemainingTime(order.orderDate);
-        });
-        setOrderTimers(timers);
-      } else {
-        setOrders([]);
-      }
+      savedOrders = JSON.parse(localStorage.getItem(`${customerId}_orders`) || '[]');
     }
+    setOrders(savedOrders);
+    const timers = {};
+    savedOrders.forEach(order => {
+      if (order.orderDate) timers[order.id] = calculateRemainingTime(order.orderDate);
+    });
+    setOrderTimers(timers);
   };
 
   const calculateRemainingTime = (orderDate) => {
@@ -415,8 +408,10 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
     setShowShipping(false);
     setShowPayment(true);
   };
+
+  // ===== UPDATED handleConfirmPurchase =====
   const handleConfirmPurchase = (method, amount, paymentSuccess = false) => {
-    setPaymentMethod(method);
+    // Create order object
     const order = {
       id: Date.now(),
       orderId: `ORD${Date.now().toString().slice(-8)}`,
@@ -433,14 +428,70 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
       })),
       shippingDetails: shippingDetails,
       paymentMethod: method,
-      paymentStatus: paymentSuccess ? 'Paid' : 'Pending', // <-- NEW
+      paymentStatus: (method === 'online' && paymentSuccess) ? 'Paid' : 'Pending',
       totalAmount: amount,
       orderDate: new Date().toISOString(),
       status: 'Confirmed',
       deliveryTime: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
     };
 
-    // ... rest of the function (saving to localStorage, updating state) unchanged ...
+    // Save order to localStorage
+    let existingOrders = [];
+    const storageKey = isGuest ? 'guestOrders' : `${customerId}_orders`;
+    const storedOrders = localStorage.getItem(storageKey);
+    if (storedOrders) {
+      try {
+        existingOrders = JSON.parse(storedOrders);
+      } catch (e) {
+        existingOrders = [];
+      }
+    }
+    // Avoid duplicates
+    const exists = existingOrders.find(o => o.id === order.id);
+    if (!exists) {
+      existingOrders.unshift(order);
+      localStorage.setItem(storageKey, JSON.stringify(existingOrders));
+    }
+
+    // Update state
+    setOrders(existingOrders);
+    const timer = calculateRemainingTime(order.orderDate);
+    setOrderTimers(prev => ({ ...prev, [order.id]: timer }));
+
+    // Clear cart
+    setCart([]);
+    const cartKey = isGuest ? 'guestCart' : getCustomerKey('userCart');
+    localStorage.setItem(cartKey, JSON.stringify([]));
+
+    // Reset payment/shipping states
+    setShowPayment(false);
+    setShowShipping(false);
+    setPaymentMethod('');
+    setShippingDetails(null);
+
+    // ----- WhatsApp Share (with UPI ID for online) -----
+    const itemsList = order.items.map(item => `${item.productName} x ${item.quantity}`).join('\n');
+    let message = `✅ *Order Confirmed!*\n\n` +
+                  `*Order ID:* ${order.orderId}\n` +
+                  `*Total:* ₹${order.totalAmount.toFixed(2)}\n` +
+                  `*Payment Method:* ${method === 'online' ? 'Online Payment' : 'Cash on Delivery'}\n` +
+                  `*Payment Status:* ${method === 'online' ? 'Paid' : 'Pending'}\n\n` +
+                  `*Items:*\n${itemsList}\n\n` +
+                  `*Shipping Address:*\n${shippingDetails.address}, ${shippingDetails.city}, ${shippingDetails.state} - ${shippingDetails.pincode}\n` +
+                  `*Contact:* ${shippingDetails.mobileNumber}\n\n`;
+
+    if (method === 'online') {
+      message += `*For Online Payment, please pay to:*\nUPI ID: ${UPI_ID}\n\n`;
+    }
+
+    message += `Thank you for shopping with SRM Rice Store! 🌾\n\n` +
+               `⏰ Your order will be delivered within 24 hours.`;
+
+   const whatsappUrl = `https://wa.me/917092492023?text=${encodeURIComponent(message)}`;
+    window.open(whatsappUrl, '_blank');
+
+    // Show success alert
+    alert(`✅ Order placed successfully! Order ID: ${order.orderId}\n\nYour order will be delivered within 24 hours.`);
   };
 
   const handleBackToCart = () => {
@@ -633,10 +684,10 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
                         <strong>Total: ₹{order.totalAmount.toFixed(2)}</strong>
                       </div>
                       <div className="order-payment">
-  💳 {order.paymentMethod === 'online' ? 'Online Payment' : 'Cash on Delivery'}
-  {order.paymentStatus && <span> ({order.paymentStatus})</span>}
-</div>
-{order.status === 'Delivered' && (
+                        💳 {order.paymentMethod === 'online' ? 'Online Payment' : 'Cash on Delivery'}
+                        {order.paymentStatus && <span> ({order.paymentStatus})</span>}
+                      </div>
+                      {order.status === 'Delivered' && (
                         <div className="delivery-status delivered">
                           ✅ Delivered on: {order.deliveredDate ? new Date(order.deliveredDate).toLocaleString() : 'N/A'}
                         </div>
