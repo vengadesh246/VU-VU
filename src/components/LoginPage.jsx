@@ -7,6 +7,10 @@ function LoginPage({ onLogin }) {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [mobileError, setMobileError] = useState('');
+  const [showAdminModal, setShowAdminModal] = useState(false);
+  const [adminMobile, setAdminMobile] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
+  const [adminError, setAdminError] = useState('');
 
   useEffect(() => {
     const savedSession = localStorage.getItem('userSession');
@@ -154,6 +158,23 @@ function LoginPage({ onLogin }) {
     onLogin('user', guestData);
   };
 
+  const handleAdminLoginSubmit = (e) => {
+    e.preventDefault();
+    if (adminMobile === '7092492023' && adminPassword === '462425') {
+      // Login as admin
+      const session = {
+        userType: 'admin',
+        expiry: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+      };
+      localStorage.setItem('userSession', JSON.stringify(session));
+      localStorage.setItem('ecommerceUser', JSON.stringify({ role: 'admin' }));
+      onLogin('admin');
+      setShowAdminModal(false);
+    } else {
+      setAdminError('❌ Invalid admin credentials');
+    }
+  };
+
   const handleLogin = (e) => {
     e.preventDefault();
     setError('');
@@ -179,11 +200,13 @@ function LoginPage({ onLogin }) {
 
   return (
     <div className="login-container">
+      {/* Small A icon in corner */}
+      <button className="admin-icon-btn" onClick={() => setShowAdminModal(true)}>A</button>
+
       <div className="login-card">
-        <h2>🌾 SRM </h2>
+        <h2>🌾 SRM</h2>
         <p className="login-subtitle">Welcome Back!</p>
 
-        
         <form onSubmit={handleLogin}>
           <div className="input-group">
             <label>📱 Mobile Number</label>
@@ -240,6 +263,40 @@ function LoginPage({ onLogin }) {
           <small className="guest-sub">Your cart will be saved temporarily on this device</small>
         </div>
       </div>
+
+      {/* Admin Login Modal */}
+      {showAdminModal && (
+        <div className="admin-modal-overlay" onClick={() => setShowAdminModal(false)}>
+          <div className="admin-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>👑 Admin Login</h3>
+            <form onSubmit={handleAdminLoginSubmit}>
+              <div className="input-group">
+                <label>Admin Mobile</label>
+                <input
+                  type="text"
+                  value={adminMobile}
+                  onChange={(e) => setAdminMobile(e.target.value)}
+                  placeholder="Enter admin mobile"
+                  required
+                />
+              </div>
+              <div className="input-group">
+                <label>Password</label>
+                <input
+                  type="password"
+                  value={adminPassword}
+                  onChange={(e) => setAdminPassword(e.target.value)}
+                  placeholder="Enter password"
+                  required
+                />
+              </div>
+              {adminError && <div className="error-message">{adminError}</div>}
+              <button type="submit" className="login-btn">Login as Admin</button>
+              <button type="button" className="cancel-btn" onClick={() => setShowAdminModal(false)}>Cancel</button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,3 +1,4 @@
+// CustomerHome.jsx
 import React, { useState, useEffect } from 'react';
 import ShippingPage from './ShippingPage';
 import PaymentPage from './PaymentPage';
@@ -166,9 +167,9 @@ const DEFAULT_PRODUCTS = [
     id: 12,
     productName: 'Pusa Basmati 1121',
     productDetails: 'Extra-long grain basmati with a distinct aroma, perfect for festive meals.',
-    price: 20,
+    price: 252,
     discount: 2,
-    finalPrice: 246.4,
+    finalPrice: 246.96,
     youtubeVideoId: 'dQw4w9WgXcQ',
     instagramUrl: 'https://instagram.com/p/example12',
     image: 'https://images.unsplash.com/photo-1586201375761-83865001e8ac?w=400',
@@ -314,13 +315,19 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
     setOrders(savedOrders);
     const timers = {};
     savedOrders.forEach(order => {
-      if (order.orderDate) timers[order.id] = calculateRemainingTime(order.orderDate);
+      if (order.status === 'Confirmed' && order.confirmationDate) {
+        timers[order.id] = calculateRemainingTime(order);
+      }
     });
     setOrderTimers(timers);
   };
 
-  const calculateRemainingTime = (orderDate) => {
-    const orderTime = new Date(orderDate).getTime();
+  // UPDATED: calculateRemainingTime uses confirmationDate
+  const calculateRemainingTime = (order) => {
+    const startDate = order.status === 'Confirmed' && order.confirmationDate
+      ? order.confirmationDate
+      : order.orderDate;
+    const orderTime = new Date(startDate).getTime();
     const currentTime = new Date().getTime();
     const elapsed = currentTime - orderTime;
     const remaining = 24 * 60 * 60 * 1000 - elapsed;
@@ -338,7 +345,9 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
       setOrders(prevOrders => {
         const updatedTimers = {};
         prevOrders.forEach(order => {
-          if (order.orderDate) updatedTimers[order.id] = calculateRemainingTime(order.orderDate);
+          if (order.status === 'Confirmed' && order.confirmationDate) {
+            updatedTimers[order.id] = calculateRemainingTime(order);
+          }
         });
         setOrderTimers(updatedTimers);
         return prevOrders;
@@ -409,9 +418,8 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
     setShowPayment(true);
   };
 
-  // ===== UPDATED handleConfirmPurchase =====
+  // ===== handleConfirmPurchase – sets status to 'Pending' =====
   const handleConfirmPurchase = (method, amount, paymentSuccess = false) => {
-    // Create order object
     const order = {
       id: Date.now(),
       orderId: `ORD${Date.now().toString().slice(-8)}`,
@@ -431,7 +439,7 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
       paymentStatus: (method === 'online' && paymentSuccess) ? 'Paid' : 'Pending',
       totalAmount: amount,
       orderDate: new Date().toISOString(),
-      status: 'Confirmed',
+      status: 'Pending',
       deliveryTime: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
     };
 
@@ -446,52 +454,53 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
         existingOrders = [];
       }
     }
-    // Avoid duplicates
     const exists = existingOrders.find(o => o.id === order.id);
     if (!exists) {
       existingOrders.unshift(order);
       localStorage.setItem(storageKey, JSON.stringify(existingOrders));
     }
 
-    // Update state
     setOrders(existingOrders);
-    const timer = calculateRemainingTime(order.orderDate);
-    setOrderTimers(prev => ({ ...prev, [order.id]: timer }));
 
     // Clear cart
     setCart([]);
     const cartKey = isGuest ? 'guestCart' : getCustomerKey('userCart');
     localStorage.setItem(cartKey, JSON.stringify([]));
 
-    // Reset payment/shipping states
     setShowPayment(false);
     setShowShipping(false);
     setPaymentMethod('');
     setShippingDetails(null);
 
-    // ----- WhatsApp Share (with UPI ID for online) -----
+    // ----- WhatsApp message to ADMIN (without link) -----
     const itemsList = order.items.map(item => `${item.productName} x ${item.quantity}`).join('\n');
-    let message = `✅ *Order Confirmed!*\n\n` +
+    let message = `🆕 *New Order Placed!*\n\n` +
                   `*Order ID:* ${order.orderId}\n` +
+                  `*Customer:* ${order.customerName}\n` +
                   `*Total:* ₹${order.totalAmount.toFixed(2)}\n` +
-                  `*Payment Method:* ${method === 'online' ? 'Online Payment' : 'Cash on Delivery'}\n` +
-                  `*Payment Status:* ${method === 'online' ? 'Paid' : 'Pending'}\n\n` +
-                  `*Items:*\n${itemsList}\n\n` +
-                  `*Shipping Address:*\n${shippingDetails.address}, ${shippingDetails.city}, ${shippingDetails.state} - ${shippingDetails.pincode}\n` +
-                  `*Contact:* ${shippingDetails.mobileNumber}\n\n`;
+                  `*Payment Method:* ${method === 'online' ? 'Online Payment' : 'Cash on Delivery'}`;
 
-    if (method === 'online') {
-      message += `*For Online Payment, please pay to:*\nUPI ID: ${UPI_ID}\n\n`;
+    if (method === 'cod') {
+      message += `\n*Payment Status:* Pending (Cash on Delivery)`;
+    } else {
+      message += `\n*Payment Status:* Paid (Online)`;
     }
 
-    message += `Thank you for shopping with SRM Rice Store! 🌾\n\n` +
-               `⏰ Your order will be delivered within 24 hours.`;
+    message += `\n\n*Items:*\n${itemsList}\n\n` +
+               `*Shipping Address:*\n${shippingDetails.address}, ${shippingDetails.city}, ${shippingDetails.state} - ${shippingDetails.pincode}\n` +
+               `*Contact:* ${shippingDetails.mobileNumber}\n`;
 
-   const whatsappUrl = `https://wa.me/917092492023?text=${encodeURIComponent(message)}`;
+    if (shippingDetails.locationLink) {
+      message += `📍 *Location:* ${shippingDetails.locationLink}\n\n`;
+    }
+
+    message += `Please confirm or cancel this order from the Admin Panel.`;
+
+    const adminNumber = '917092492023'; // Replace with your admin number
+    const whatsappUrl = `https://wa.me/${adminNumber}?text=${encodeURIComponent(message)}`;
     window.open(whatsappUrl, '_blank');
 
-    // Show success alert
-    alert(`✅ Order placed successfully! Order ID: ${order.orderId}\n\nYour order will be delivered within 24 hours.`);
+    alert(`✅ Order placed successfully! Order ID: ${order.orderId}\n\nWe will confirm your order shortly.`);
   };
 
   const handleBackToCart = () => {
@@ -654,15 +663,18 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
             ) : (
               <div className="orders-list">
                 {orders.map(order => {
-                  const timer = orderTimers[order.id] || calculateRemainingTime(order.orderDate);
+                  const timer = order.status === 'Confirmed' 
+                    ? (orderTimers[order.id] || calculateRemainingTime(order))
+                    : null;
                   return (
                     <div key={order.id} className="order-card">
                       <div className="order-header">
                         <span className="order-id">Order #{order.orderId}</span>
                         <span className={`order-status ${order.status.toLowerCase()}`}>
                           {order.status === 'Delivered' ? '✅ Delivered' :
-                            order.status === 'Cancelled' ? '❌ Cancelled' :
-                              '⏳ Confirmed'}
+                           order.status === 'Cancelled' ? '❌ Cancelled' :
+                           order.status === 'Pending' ? '⏳ Pending' :
+                           '✅ Confirmed'}
                         </span>
                       </div>
                       <div className="order-date">
@@ -693,9 +705,9 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
                         </div>
                       )}
                       {order.status === 'Cancelled' && (
-                        <div className="delivery-status cancelled">❌ Order Cancelled</div>
+                        <div className="delivery-status cancelled">❌ Order Cancelled by Admin</div>
                       )}
-                      {order.status === 'Confirmed' && (
+                      {order.status === 'Confirmed' && timer && (
                         <div className="order-delivery">
                           <div className="delivery-timer">
                             <span className="timer-icon">⏰</span>
@@ -708,7 +720,7 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
                             <div
                               className="delivery-progress-bar"
                               style={{
-                                width: timer.expired ? '100%' : `${((24 * 60 * 60 * 1000 - (new Date().getTime() - new Date(order.orderDate).getTime())) / (24 * 60 * 60 * 1000)) * 100}%`
+                                width: timer.expired ? '100%' : `${((24 * 60 * 60 * 1000 - (new Date().getTime() - new Date(order.confirmationDate || order.orderDate).getTime())) / (24 * 60 * 60 * 1000)) * 100}%`
                               }}
                             ></div>
                           </div>

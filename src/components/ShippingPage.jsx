@@ -211,13 +211,15 @@ function ShippingPage({ cart, onBack, onProceedToPayment, customerId, customerNa
           pincode: formData.pincode,
           landmark: formData.landmark,
           addressType: formData.addressType,
+          locationLink: locationLink,
           createdAt: new Date().toISOString(),
           isDefault: savedAddresses.length === 0
         };
         const updatedAddresses = [...savedAddresses, newAddress];
         saveAddresses(updatedAddresses);
       }
-      onProceedToPayment(formData);
+      // Pass form data + location link
+      onProceedToPayment({ ...formData, locationLink });
     }
   };
 
@@ -235,6 +237,7 @@ function ShippingPage({ cart, onBack, onProceedToPayment, customerId, customerNa
         landmark: address.landmark || '',
         addressType: address.addressType || 'home'
       });
+      setLocationLink(address.locationLink || '');
       setIsEditing(false);
       setEditAddressId(null);
       setErrors(prev => ({ ...prev, address: '' }));
@@ -255,6 +258,7 @@ function ShippingPage({ cart, onBack, onProceedToPayment, customerId, customerNa
         landmark: address.landmark || '',
         addressType: address.addressType || 'home'
       });
+      setLocationLink(address.locationLink || '');
       setIsEditing(true);
       setSelectedAddressId(null);
     }
@@ -276,6 +280,7 @@ function ShippingPage({ cart, onBack, onProceedToPayment, customerId, customerNa
           landmark: '',
           addressType: 'home'
         });
+        setLocationLink('');
       }
       if (editAddressId === addressId) {
         setIsEditing(false);
@@ -306,6 +311,7 @@ function ShippingPage({ cart, onBack, onProceedToPayment, customerId, customerNa
       landmark: '',
       addressType: 'home'
     });
+    setLocationLink('');
     setErrors({});
   };
 
@@ -322,7 +328,8 @@ function ShippingPage({ cart, onBack, onProceedToPayment, customerId, customerNa
             state: formData.state,
             pincode: formData.pincode,
             landmark: formData.landmark,
-            addressType: formData.addressType
+            addressType: formData.addressType,
+            locationLink: locationLink
           };
         }
         return a;

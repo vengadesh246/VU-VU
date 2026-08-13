@@ -1227,3 +1227,7 @@
   .product-card:hover { transform: none; }
   .product-card:hover .product-image-container img { transform: none; }
 }
+.order-status.pending {
+  background: #fff3cd;
+  color: #856404;
+}

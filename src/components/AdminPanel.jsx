@@ -76,9 +76,9 @@ function AdminPanel({ onLogout }) {
       id: 4,
       productName: 'Jasmine Rice – Fragrant',
       productDetails: 'Exquisite Thai jasmine rice, long grain with a floral aroma.',
-      price: 20,
-      discount: 5,
-      finalPrice: 19,
+      price: 250,
+      discount: 12,
+      finalPrice: 220,
       youtubeVideoId: 'dQw4w9WgXcQ',
       instagramUrl: 'https://instagram.com/p/example4',
       image: 'https://images.unsplash.com/photo-1586201375761-83865001e8ac?w=400',
@@ -188,9 +188,9 @@ function AdminPanel({ onLogout }) {
       id: 12,
       productName: 'Pusa Basmati 1121',
       productDetails: 'Extra-long grain basmati with a distinct aroma, perfect for festive meals.',
-      price: 20,
+      price: 252,
       discount: 2,
-      finalPrice: 246.4,
+      finalPrice: 246.96,
       youtubeVideoId: 'dQw4w9WgXcQ',
       instagramUrl: 'https://instagram.com/p/example12',
       image: 'https://images.unsplash.com/photo-1586201375761-83865001e8ac?w=400',
@@ -411,7 +411,7 @@ function AdminPanel({ onLogout }) {
     }
   };
 
-  // ----- Orders -----
+  // ===== Orders: updateOrderStatus (sets confirmationDate) =====
   const updateOrderStatus = (orderId, status) => {
     const orderToUpdate = orders.find(o => o.id === orderId);
     if (!orderToUpdate) {
@@ -435,6 +435,9 @@ function AdminPanel({ onLogout }) {
                 status: status,
                 statusUpdateDate: new Date().toISOString()
               };
+              if (status === 'Confirmed') {
+                updatedOrder.confirmationDate = new Date().toISOString();
+              }
               if (status === 'Delivered') {
                 updatedOrder.deliveredDate = new Date().toISOString();
               }
@@ -478,21 +481,19 @@ function AdminPanel({ onLogout }) {
 
   const getOrderStats = () => {
     const total = orders.length;
+    const pending = orders.filter(o => o.status === 'Pending').length;
     const confirmed = orders.filter(o => o.status === 'Confirmed').length;
     const delivered = orders.filter(o => o.status === 'Delivered').length;
     const cancelled = orders.filter(o => o.status === 'Cancelled').length;
-    return { total, confirmed, delivered, cancelled };
+    return { total, pending, confirmed, delivered, cancelled };
   };
 
   const getFilteredOrders = () => {
     if (orderFilter === 'all') return orders;
-    if (orderFilter === 'delivered') {
-      return orders.filter(o => o.status.toLowerCase() === 'delivered');
-    }
-    if (orderFilter === 'cancelled') {
-      return orders.filter(o => o.status.toLowerCase() === 'cancelled');
-    }
-    return orders.filter(o => o.status.toLowerCase() === orderFilter);
+    if (orderFilter === 'delivered') return orders.filter(o => o.status === 'Delivered');
+    if (orderFilter === 'cancelled') return orders.filter(o => o.status === 'Cancelled');
+    if (orderFilter === 'pending') return orders.filter(o => o.status === 'Pending');
+    return orders.filter(o => o.status === orderFilter); // for 'confirmed'
   };
 
   const stats = getOrderStats();
@@ -520,6 +521,7 @@ function AdminPanel({ onLogout }) {
 
       <div className="admin-content">
         {activeTab === 'products' ? (
+          // Product Management Section
           <>
             <div className="product-form-container">
               <h2>{editingId ? '✏️ Edit Product' : '➕ Add New Product'}</h2>
@@ -644,6 +646,10 @@ function AdminPanel({ onLogout }) {
                 <span className="stat-label">Total Orders</span>
                 <span className="stat-value">{stats.total}</span>
               </div>
+              <div className="stat-card pending">
+                <span className="stat-label">Pending</span>
+                <span className="stat-value">{stats.pending}</span>
+              </div>
               <div className="stat-card confirmed">
                 <span className="stat-label">Confirmed</span>
                 <span className="stat-value">{stats.confirmed}</span>
@@ -725,7 +731,10 @@ function AdminPanel({ onLogout }) {
                 <h2>📋 All Orders</h2>
                 <div className="filter-buttons">
                   <button className={`filter-btn ${orderFilter === 'all' ? 'active' : ''}`} onClick={() => setOrderFilter('all')}>All ({stats.total})</button>
+                  <button className={`filter-btn pending ${orderFilter === 'pending' ? 'active' : ''}`} onClick={() => setOrderFilter('pending')}>Pending ({stats.pending})</button>
                   <button className={`filter-btn confirmed ${orderFilter === 'confirmed' ? 'active' : ''}`} onClick={() => setOrderFilter('confirmed')}>Confirmed ({stats.confirmed})</button>
+                  <button className={`filter-btn delivered ${orderFilter === 'delivered' ? 'active' : ''}`} onClick={() => setOrderFilter('delivered')}>Delivered ({stats.delivered})</button>
+                  <button className={`filter-btn cancelled ${orderFilter === 'cancelled' ? 'active' : ''}`} onClick={() => setOrderFilter('cancelled')}>Cancelled ({stats.cancelled})</button>
                 </div>
               </div>
 
@@ -775,25 +784,45 @@ function AdminPanel({ onLogout }) {
                       </div>
 
                       <div className="order-actions">
+                        {order.status === 'Pending' && (
+                          <>
+                            <button className="confirm-btn-order" onClick={() => updateOrderStatus(order.id, 'Confirmed')}>
+                              ✅ Confirm Order
+                            </button>
+                            <button className="cancel-btn-order" onClick={() => updateOrderStatus(order.id, 'Cancelled')}>
+                              ❌ Cancel Order
+                            </button>
+                          </>
+                        )}
                         {order.status === 'Confirmed' && (
                           <>
-                            <button className="deliver-btn" onClick={() => updateOrderStatus(order.id, 'Delivered')}>✅ Mark as Delivered</button>
-                            <button className="cancel-btn-order" onClick={() => updateOrderStatus(order.id, 'Cancelled')}>❌ Cancel Order</button>
+                            <button className="deliver-btn" onClick={() => updateOrderStatus(order.id, 'Delivered')}>
+                              🚚 Mark as Delivered
+                            </button>
+                            <button className="cancel-btn-order" onClick={() => updateOrderStatus(order.id, 'Cancelled')}>
+                              ❌ Cancel Order
+                            </button>
                           </>
                         )}
                         {order.status === 'Delivered' && (
                           <>
                             <div className="delivered-info">
                               <span className="delivered-badge">✅ Delivered</span>
-                              {order.deliveredDate && <span className="delivered-date">📅 Delivered on: {new Date(order.deliveredDate).toLocaleString()}</span>}
+                              {order.deliveredDate && (
+                                <span className="delivered-date">📅 Delivered on: {new Date(order.deliveredDate).toLocaleString()}</span>
+                              )}
                             </div>
-                            <button className="revert-btn" onClick={() => updateOrderStatus(order.id, 'Confirmed')}>↩️ Revert to Confirmed</button>
+                            <button className="revert-btn" onClick={() => updateOrderStatus(order.id, 'Confirmed')}>
+                              ↩️ Revert to Confirmed
+                            </button>
                           </>
                         )}
                         {order.status === 'Cancelled' && (
                           <>
                             <div className="cancelled-info"><span className="cancelled-badge">❌ Cancelled</span></div>
-                            <button className="revert-btn" onClick={() => updateOrderStatus(order.id, 'Confirmed')}>↩️ Revert to Confirmed</button>
+                            <button className="revert-btn" onClick={() => updateOrderStatus(order.id, 'Confirmed')}>
+                              ↩️ Revert to Confirmed
+                            </button>
                           </>
                         )}
                       </div>
