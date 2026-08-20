@@ -1,12 +1,74 @@
 import React, { useState } from 'react';
 import './PaymentPage.css';
 
-function PaymentPage({ cart, shippingDetails, onBack, onConfirmPurchase }) {
+function PaymentPage({ cart, shippingDetails, onBack, onConfirmPurchase, customerId, customerName, isGuest }) {
   const [paymentMethod, setPaymentMethod] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [errors, setErrors] = useState({});
+  const [couponCode, setCouponCode] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
+  const [discountAmount, setDiscountAmount] = useState(0);
+  const [couponMessage, setCouponMessage] = useState('');
 
   const totalAmount = cart.reduce((sum, item) => sum + (item.finalPrice * item.quantity), 0);
+  const [finalTotal, setFinalTotal] = useState(totalAmount);
+
+  const handleApplyCoupon = () => {
+    const code = couponCode.trim().toUpperCase();
+    if (!code) {
+      setCouponMessage('Please enter a coupon code');
+      return;
+    }
+    const coupons = JSON.parse(localStorage.getItem('coupons') || '[]');
+    const coupon = coupons.find(c => c.code === code && c.active);
+    if (!coupon) {
+      setCouponMessage('Invalid or inactive coupon');
+      return;
+    }
+    // Check expiry
+    if (new Date(coupon.expiry) < new Date()) {
+      setCouponMessage('Coupon has expired');
+      return;
+    }
+    // Min order
+    if (totalAmount < coupon.minOrder) {
+      setCouponMessage(`Minimum order ₹${coupon.minOrder} required`);
+      return;
+    }
+    // Usage limit
+    if (coupon.usedCount >= coupon.maxUses) {
+      setCouponMessage('Coupon usage limit reached');
+      return;
+    }
+    // Per-user check
+    if (!isGuest && customerId) {
+      const userProfile = JSON.parse(localStorage.getItem(`profile_${customerId}`) || '{}');
+      if (userProfile.usedCoupons && userProfile.usedCoupons.includes(code)) {
+        setCouponMessage('You have already used this coupon');
+        return;
+      }
+    }
+    // Apply discount
+    let discount = 0;
+    if (coupon.discountType === 'percentage') {
+      discount = (totalAmount * coupon.discountValue) / 100;
+    } else {
+      discount = coupon.discountValue;
+    }
+    if (discount > totalAmount) discount = totalAmount;
+    setDiscountAmount(discount);
+    setFinalTotal(totalAmount - discount);
+    setAppliedCoupon(coupon);
+    setCouponMessage(`✅ Coupon applied! You saved ₹${discount.toFixed(2)}`);
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setDiscountAmount(0);
+    setFinalTotal(totalAmount);
+    setCouponMessage('');
+    setCouponCode('');
+  };
 
   const handleConfirm = () => {
     if (!paymentMethod) {
@@ -14,13 +76,10 @@ function PaymentPage({ cart, shippingDetails, onBack, onConfirmPurchase }) {
       return;
     }
     setIsProcessing(true);
-    // Simulate a short delay (optional)
     setTimeout(() => {
       setIsProcessing(false);
-      // Pass the payment method and total amount to parent
-      // For online, we consider it as "paid" (since the seller will receive payment via WhatsApp)
       const paymentSuccess = paymentMethod === 'online';
-      onConfirmPurchase(paymentMethod, totalAmount, paymentSuccess);
+      onConfirmPurchase(paymentMethod, finalTotal, paymentSuccess, appliedCoupon ? appliedCoupon.code : null, discountAmount);
     }, 500);
   };
 
@@ -50,7 +109,13 @@ function PaymentPage({ cart, shippingDetails, onBack, onConfirmPurchase }) {
               <span>₹{(item.finalPrice * item.quantity).toFixed(2)}</span>
             </div>
           ))}
-          <div className="review-total">Total: ₹{totalAmount.toFixed(2)}</div>
+          {appliedCoupon && (
+            <div className="review-item coupon-line">
+              <span>🎫 Coupon {appliedCoupon.code}</span>
+              <span>- ₹{discountAmount.toFixed(2)}</span>
+            </div>
+          )}
+          <div className="review-total">Total: ₹{finalTotal.toFixed(2)}</div>
         </div>
 
         {/* Delivery Info */}
@@ -63,10 +128,29 @@ function PaymentPage({ cart, shippingDetails, onBack, onConfirmPurchase }) {
           </div>
         </div>
 
+        {/* Coupon Section */}
+        <div className="coupon-section">
+          <h3>🎫 Apply Coupon</h3>
+          <div className="coupon-input-group">
+            <input
+              type="text"
+              value={couponCode}
+              onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+              placeholder="Enter coupon code"
+              disabled={!!appliedCoupon}
+            />
+            {!appliedCoupon ? (
+              <button onClick={handleApplyCoupon} className="apply-coupon-btn">Apply</button>
+            ) : (
+              <button onClick={handleRemoveCoupon} className="remove-coupon-btn">Remove</button>
+            )}
+          </div>
+          {couponMessage && <span className={`coupon-message ${couponMessage.startsWith('✅') ? 'success' : 'error'}`}>{couponMessage}</span>}
+        </div>
+
         {/* Payment Methods */}
         <div className="payment-methods">
           <h3>Select Payment Method</h3>
-
           <div className="payment-option">
             <label className="payment-label">
               <input
@@ -74,10 +158,7 @@ function PaymentPage({ cart, shippingDetails, onBack, onConfirmPurchase }) {
                 name="payment"
                 value="online"
                 checked={paymentMethod === 'online'}
-                onChange={(e) => {
-                  setPaymentMethod(e.target.value);
-                  setErrors({});
-                }}
+                onChange={(e) => { setPaymentMethod(e.target.value); setErrors({}); }}
               />
               <div className="payment-option-content">
                 <span>💳 Online Payment</span>
@@ -85,7 +166,6 @@ function PaymentPage({ cart, shippingDetails, onBack, onConfirmPurchase }) {
               </div>
             </label>
           </div>
-
           <div className="payment-option">
             <label className="payment-label">
               <input
@@ -93,10 +173,7 @@ function PaymentPage({ cart, shippingDetails, onBack, onConfirmPurchase }) {
                 name="payment"
                 value="cod"
                 checked={paymentMethod === 'cod'}
-                onChange={(e) => {
-                  setPaymentMethod(e.target.value);
-                  setErrors({});
-                }}
+                onChange={(e) => { setPaymentMethod(e.target.value); setErrors({}); }}
               />
               <div className="payment-option-content">
                 <span>💰 Cash on Delivery</span>
@@ -104,17 +181,12 @@ function PaymentPage({ cart, shippingDetails, onBack, onConfirmPurchase }) {
               </div>
             </label>
           </div>
-
           {errors.payment && <span className="error">{errors.payment}</span>}
         </div>
 
-        {/* Confirm Purchase Button */}
+        {/* Confirm Button */}
         <div className="payment-actions">
-          <button
-            onClick={handleConfirm}
-            className="confirm-btn"
-            disabled={isProcessing}
-          >
+          <button onClick={handleConfirm} className="confirm-btn" disabled={isProcessing}>
             {isProcessing ? '⏳ Processing...' : '✅ Confirm Purchase'}
           </button>
           {paymentMethod === 'online' && (

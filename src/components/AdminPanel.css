@@ -1153,4 +1153,173 @@
 .order-status-badge.pending {
   background: #fff3cd;
   color: #856404;
+}/* ---- Category & Coupon Styles ---- */
+.categories-management, .coupons-management {
+  background: white;
+  border-radius: 15px;
+  padding: clamp(20px,3vw,30px);
+  box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+}
+.category-form {
+  display: flex;
+  gap: 15px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+.category-form input {
+  flex: 1;
+  padding: 10px 15px;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 1rem;
+}
+.add-category-btn {
+  padding: 10px 25px;
+  background: #2ecc71;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+}
+.category-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.category-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #f8f9fa;
+  padding: 8px 16px;
+  border-radius: 20px;
+  border: 1px solid #dee2e6;
+}
+.delete-cat-btn {
+  background: none;
+  border: none;
+  color: #e74c3c;
+  cursor: pointer;
+  font-size: 1.2rem;
+}
+
+/* Coupon cards */
+.coupon-card {
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 12px;
+  padding: 15px;
+  margin-bottom: 15px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.coupon-header {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+.coupon-code {
+  font-weight: 700;
+  font-size: 1.2rem;
+  color: #2c3e50;
+}
+.coupon-status {
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.coupon-status.active {
+  background: #d4edda;
+  color: #155724;
+}
+.coupon-status.inactive {
+  background: #f8d7da;
+  color: #721c24;
+}
+.coupon-details {
+  flex: 1;
+  margin: 0 15px;
+}
+.coupon-details p {
+  margin: 3px 0;
+  color: #6c757d;
+}
+.coupon-actions button {
+  margin-left: 8px;
+}
+
+/* Product meta badges */
+.product-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0;
+}
+.category-badge, .stock-badge, .rating-badge {
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.category-badge {
+  background: #e3f2fd;
+  color: #1565C0;
+}
+.stock-badge.in-stock {
+  background: #d4edda;
+  color: #155724;
+}
+.stock-badge.out-of-stock {
+  background: #f8d7da;
+  color: #721c24;
+}
+.rating-badge {
+  background: #fff3cd;
+  color: #856404;
+}
+.view-reviews-btn {
+  background: #6c757d;
+  color: white;
+  border: none;
+  padding: 4px 12px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  margin-top: 6px;
+}
+
+/* Review modal */
+.review-item {
+  border-bottom: 1px solid #eee;
+  padding: 12px 0;
+}
+.review-header {
+  display: flex;
+  gap: 15px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.review-rating {
+  color: #f39c12;
+}
+.review-date {
+  color: #999;
+  font-size: 0.85rem;
+}
+.review-comment {
+  margin: 8px 0 0 0;
+  color: #555;
+}
+.delete-review-btn {
+  background: #e74c3c;
+  color: white;
+  border: none;
+  padding: 4px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-top: 8px;
 }

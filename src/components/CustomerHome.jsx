@@ -1,227 +1,13 @@
-// CustomerHome.jsx
 import React, { useState, useEffect } from 'react';
 import ShippingPage from './ShippingPage';
 import PaymentPage from './PaymentPage';
 import './CustomerHome.css';
 
-// 🔁 Replace with your actual UPI ID
+// Replace with your actual UPI ID (used for online payments)
 const UPI_ID = 'sowdammalricemill246@okicici';
 
-// Default products – same as AdminPanel
-const DEFAULT_PRODUCTS = [
-  {
-    id: 1,
-    productName: 'Basmati Rice – Premium Long Grain',
-    productDetails: 'Aged 2 years, aromatic and fluffy, perfect for biryani and pulao.',
-    price: 220,
-    discount: 15,
-    finalPrice: 187,
-    youtubeVideoId: 'dQw4w9WgXcQ',
-    instagramUrl: 'https://instagram.com/p/example1',
-    image: 'https://images.unsplash.com/photo-1586201375761-83865001e8ac?w=400',
-    discountImage: 'https://media.giphy.com/media/3o7abldj0b3rxrZUxW/giphy.gif',
-    discountText: '🎉 Special Offer! 15% Off',
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 2,
-    productName: 'Ponni Boiled Rice',
-    productDetails: 'Traditional boiled rice, ideal for daily meals with excellent texture.',
-    price: 160,
-    discount: 10,
-    finalPrice: 144,
-    youtubeVideoId: 'dQw4w9WgXcQ',
-    instagramUrl: 'https://instagram.com/p/example2',
-    image: 'https://images.unsplash.com/photo-1536304993881-ff6e9eefa2a6?w=400',
-    discountImage: 'https://media.giphy.com/media/3o7abldj0b3rxrZUxW/giphy.gif',
-    discountText: '🔥 10% OFF – Daily Use',
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 3,
-    productName: 'Brown Rice – Organic',
-    productDetails: 'High fiber, nutrient-rich, unpolished organic brown rice.',
-    price: 190,
-    discount: 8,
-    finalPrice: 174.8,
-    youtubeVideoId: 'dQw4w9WgXcQ',
-    instagramUrl: 'https://instagram.com/p/example3',
-    image: 'https://images.unsplash.com/photo-1536304993881-ff6e9eefa2a6?w=400',
-    discountImage: 'https://media.giphy.com/media/3o7abldj0b3rxrZUxW/giphy.gif',
-    discountText: '🌾 Organic & Healthy',
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 4,
-    productName: 'Jasmine Rice – Fragrant',
-    productDetails: 'Exquisite Thai jasmine rice, long grain with a floral aroma.',
-    price: 250,
-    discount: 12,
-    finalPrice: 220,
-    youtubeVideoId: 'dQw4w9WgXcQ',
-    instagramUrl: 'https://instagram.com/p/example4',
-    image: 'https://images.unsplash.com/photo-1586201375761-83865001e8ac?w=400',
-    discountImage: 'https://media.giphy.com/media/3o7abldj0b3rxrZUxW/giphy.gif',
-    discountText: '✨ Premium Aroma',
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 5,
-    productName: 'Sona Masuri Rice',
-    productDetails: 'Medium grain, lightweight, and perfect for everyday South Indian meals.',
-    price: 140,
-    discount: 5,
-    finalPrice: 133,
-    youtubeVideoId: 'dQw4w9WgXcQ',
-    instagramUrl: 'https://instagram.com/p/example5',
-    image: 'https://images.unsplash.com/photo-1536304993881-ff6e9eefa2a6?w=400',
-    discountImage: 'https://media.giphy.com/media/3o7abldj0b3rxrZUxW/giphy.gif',
-    discountText: '🏡 Daily Essential',
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 6,
-    productName: 'Idly Rice – Parboiled',
-    productDetails: 'Specially processed for soft and fluffy idlis and dosas.',
-    price: 130,
-    discount: 0,
-    finalPrice: 130,
-    youtubeVideoId: 'dQw4w9WgXcQ',
-    instagramUrl: 'https://instagram.com/p/example6',
-    image: 'https://images.unsplash.com/photo-1586201375761-83865001e8ac?w=400',
-    discountImage: '',
-    discountText: '',
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 7,
-    productName: 'Kerala Matta Red Rice',
-    productDetails: 'Traditional red rice with nutty flavour, high in antioxidants.',
-    price: 210,
-    discount: 10,
-    finalPrice: 189,
-    youtubeVideoId: 'dQw4w9WgXcQ',
-    instagramUrl: 'https://instagram.com/p/example7',
-    image: 'https://images.unsplash.com/photo-1536304993881-ff6e9eefa2a6?w=400',
-    discountImage: 'https://media.giphy.com/media/3o7abldj0b3rxrZUxW/giphy.gif',
-    discountText: '❤️ Rich in Nutrients',
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 8,
-    productName: 'Black Rice – Forbidden',
-    productDetails: 'Exotic black rice, rich in anthocyanins and fibre.',
-    price: 320,
-    discount: 20,
-    finalPrice: 256,
-    youtubeVideoId: 'dQw4w9WgXcQ',
-    instagramUrl: 'https://instagram.com/p/example8',
-    image: 'https://images.unsplash.com/photo-1586201375761-83865001e8ac?w=400',
-    discountImage: 'https://media.giphy.com/media/3o7abldj0b3rxrZUxW/giphy.gif',
-    discountText: '⚡ Superfood – 20% Off',
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 9,
-    productName: 'Wild Rice – Gourmet',
-    productDetails: 'Nutty, chewy, and high-protein wild rice blend.',
-    price: 380,
-    discount: 18,
-    finalPrice: 311.6,
-    youtubeVideoId: 'dQw4w9WgXcQ',
-    instagramUrl: 'https://instagram.com/p/example9',
-    image: 'https://images.unsplash.com/photo-1536304993881-ff6e9eefa2a6?w=400',
-    discountImage: 'https://media.giphy.com/media/3o7abldj0b3rxrZUxW/giphy.gif',
-    discountText: '🌟 Gourmet Delight',
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 10,
-    productName: 'Ambemohar – Aromatic',
-    productDetails: 'Fragrant short-grain rice, famous for its sweet aroma.',
-    price: 200,
-    discount: 10,
-    finalPrice: 180,
-    youtubeVideoId: 'dQw4w9WgXcQ',
-    instagramUrl: 'https://instagram.com/p/example10',
-    image: 'https://images.unsplash.com/photo-1586201375761-83865001e8ac?w=400',
-    discountImage: 'https://media.giphy.com/media/3o7abldj0b3rxrZUxW/giphy.gif',
-    discountText: '🌹 Fragrant & Soft',
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 11,
-    productName: 'Kolam Rice – Daily Use',
-    productDetails: 'Light and fluffy, excellent for everyday cooking.',
-    price: 120,
-    discount: 5,
-    finalPrice: 114,
-    youtubeVideoId: 'dQw4w9WgXcQ',
-    instagramUrl: 'https://instagram.com/p/example11',
-    image: 'https://images.unsplash.com/photo-1536304993881-ff6e9eefa2a6?w=400',
-    discountImage: '',
-    discountText: '',
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 12,
-    productName: 'Pusa Basmati 1121',
-    productDetails: 'Extra-long grain basmati with a distinct aroma, perfect for festive meals.',
-    price: 252,
-    discount: 2,
-    finalPrice: 246.96,
-    youtubeVideoId: 'dQw4w9WgXcQ',
-    instagramUrl: 'https://instagram.com/p/example12',
-    image: 'https://images.unsplash.com/photo-1586201375761-83865001e8ac?w=400',
-    discountImage: 'https://media.giphy.com/media/3o7abldj0b3rxrZUxW/giphy.gif',
-    discountText: '🎊 Festival Special',
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 13,
-    productName: 'Sharbati Rice – Premium',
-    productDetails: 'Short-grain, sweet-smelling rice often used in desserts.',
-    price: 240,
-    discount: 8,
-    finalPrice: 220.8,
-    youtubeVideoId: 'dQw4w9WgXcQ',
-    instagramUrl: 'https://instagram.com/p/example13',
-    image: 'https://images.unsplash.com/photo-1536304993881-ff6e9eefa2a6?w=400',
-    discountImage: 'https://media.giphy.com/media/3o7abldj0b3rxrZUxW/giphy.gif',
-    discountText: '🍚 Sweet & Aromatic',
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 14,
-    productName: 'Tandoori Rice – Special',
-    productDetails: 'Coarse grain, ideal for tandoori and grilled dishes.',
-    price: 170,
-    discount: 0,
-    finalPrice: 170,
-    youtubeVideoId: 'dQw4w9WgXcQ',
-    instagramUrl: 'https://instagram.com/p/example14',
-    image: 'https://images.unsplash.com/photo-1586201375761-83865001e8ac?w=400',
-    discountImage: '',
-    discountText: '',
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 15,
-    productName: 'Organic White Rice',
-    productDetails: 'Certified organic white rice, smooth and versatile.',
-    price: 195,
-    discount: 10,
-    finalPrice: 175.5,
-    youtubeVideoId: 'dQw4w9WgXcQ',
-    instagramUrl: 'https://instagram.com/p/example15',
-    image: 'https://images.unsplash.com/photo-1536304993881-ff6e9eefa2a6?w=400',
-    discountImage: 'https://media.giphy.com/media/3o7abldj0b3rxrZUxW/giphy.gif',
-    discountText: '🌿 Pure Organic',
-    createdAt: new Date().toISOString()
-  }
-];
-
 function CustomerHome({ onLogout, customerId, customerLoginId }) {
+  // ---- State ----
   const [products, setProducts] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedProduct, setSelectedProduct] = useState(null);
@@ -241,8 +27,20 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
   const [customerName, setCustomerName] = useState('');
   const [isGuest, setIsGuest] = useState(false);
 
+  // Category filter
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [categories, setCategories] = useState([]);
+
+  // Review modal
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [reviewProduct, setReviewProduct] = useState(null);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState('');
+
+  // ---- Helper functions ----
   const getCustomerKey = (baseKey) => `${customerId}_${baseKey}`;
 
+  // ---- Load data on mount ----
   useEffect(() => {
     const isGuestUser = customerId?.startsWith('GUEST');
     setIsGuest(isGuestUser);
@@ -269,11 +67,13 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
     loadCart();
     loadWishlist();
     loadOrders();
+    loadCategories();
     startOrderTimers();
   }, [customerId]);
 
+  // ---- Data loading functions ----
   const loadProducts = () => {
-    let savedProducts = localStorage.getItem('riceProducts');
+    const savedProducts = localStorage.getItem('riceProducts');
     if (savedProducts) {
       try {
         const parsed = JSON.parse(savedProducts);
@@ -281,10 +81,22 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
           setProducts(parsed);
           return;
         }
-      } catch (e) { }
+      } catch (e) {}
     }
-    localStorage.setItem('riceProducts', JSON.stringify(DEFAULT_PRODUCTS));
-    setProducts(DEFAULT_PRODUCTS);
+    // Fallback: if no products, set empty array (admin should have created them)
+    setProducts([]);
+  };
+
+  const loadCategories = () => {
+    const saved = localStorage.getItem('categories');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        setCategories(parsed);
+        return;
+      } catch (e) {}
+    }
+    setCategories(['Basmati', 'Brown', 'White', 'Specialty', 'Organic']);
   };
 
   const loadCart = () => {
@@ -322,7 +134,7 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
     setOrderTimers(timers);
   };
 
-  // UPDATED: calculateRemainingTime uses confirmationDate
+  // ---- Timer for delivery ----
   const calculateRemainingTime = (order) => {
     const startDate = order.status === 'Confirmed' && order.confirmationDate
       ? order.confirmationDate
@@ -355,10 +167,19 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
     }, 1000);
   };
 
+  // ---- Cart & Wishlist actions ----
   const addToCart = (product) => {
+    if (product.stock <= 0) {
+      showToast('❌ Sorry, this product is out of stock!');
+      return;
+    }
     const existingItem = cart.find(item => item.id === product.id);
     let updatedCart;
     if (existingItem) {
+      if (existingItem.quantity >= product.stock) {
+        showToast(`⚠️ Only ${product.stock} available in stock.`);
+        return;
+      }
       updatedCart = cart.map(item =>
         item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
       );
@@ -394,6 +215,7 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
     setTimeout(() => Toast.remove(), 2000);
   };
 
+  // ---- Video player ----
   const playVideo = (videoId) => {
     if (videoId) {
       setCurrentVideo(videoId);
@@ -403,6 +225,7 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
     }
   };
 
+  // ---- Checkout flow ----
   const handleProceedToCheckout = () => {
     if (cart.length === 0) {
       alert('Your cart is empty!');
@@ -418,8 +241,55 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
     setShowPayment(true);
   };
 
-  // ===== handleConfirmPurchase – sets status to 'Pending' =====
-  const handleConfirmPurchase = (method, amount, paymentSuccess = false) => {
+  const handleBackToCart = () => {
+    setShowShipping(false);
+    setShowCart(true);
+  };
+
+  const handleBackToShipping = () => {
+    setShowPayment(false);
+    setShowShipping(true);
+  };
+
+  // ---- Review functions ----
+  const hasPurchasedProduct = (productId) => {
+    const userOrders = orders.filter(o => o.customerId === customerId || o.isGuest === isGuest);
+    return userOrders.some(order => order.items.some(item => item.id === productId));
+  };
+
+  const handleSubmitReview = () => {
+    if (!reviewProduct) return;
+    if (!reviewComment.trim()) {
+      showToast('Please write a comment.');
+      return;
+    }
+    const newReview = {
+      id: Date.now(),
+      customerId: customerId,
+      customerName: customerName,
+      rating: reviewRating,
+      comment: reviewComment.trim(),
+      date: new Date().toISOString()
+    };
+    const updatedProducts = products.map(p => {
+      if (p.id === reviewProduct.id) {
+        const updatedReviews = [...(p.reviews || []), newReview];
+        const avg = updatedReviews.reduce((sum, r) => sum + r.rating, 0) / updatedReviews.length;
+        return { ...p, reviews: updatedReviews, averageRating: avg };
+      }
+      return p;
+    });
+    setProducts(updatedProducts);
+    localStorage.setItem('riceProducts', JSON.stringify(updatedProducts));
+    setShowReviewModal(false);
+    setReviewProduct(null);
+    setReviewComment('');
+    setReviewRating(5);
+    showToast('✅ Thank you for your review!');
+  };
+
+  // ---- Order confirmation (with coupon support) ----
+  const handleConfirmPurchase = (method, amount, paymentSuccess, couponCode, couponDiscount) => {
     const order = {
       id: Date.now(),
       orderId: `ORD${Date.now().toString().slice(-8)}`,
@@ -438,12 +308,14 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
       paymentMethod: method,
       paymentStatus: (method === 'online' && paymentSuccess) ? 'Paid' : 'Pending',
       totalAmount: amount,
+      couponCode: couponCode || null,
+      couponDiscount: couponDiscount || 0,
       orderDate: new Date().toISOString(),
       status: 'Pending',
       deliveryTime: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
     };
 
-    // Save order to localStorage
+    // Save order
     let existingOrders = [];
     const storageKey = isGuest ? 'guestOrders' : `${customerId}_orders`;
     const storedOrders = localStorage.getItem(storageKey);
@@ -454,13 +326,26 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
         existingOrders = [];
       }
     }
-    const exists = existingOrders.find(o => o.id === order.id);
-    if (!exists) {
-      existingOrders.unshift(order);
-      localStorage.setItem(storageKey, JSON.stringify(existingOrders));
-    }
-
+    existingOrders.unshift(order);
+    localStorage.setItem(storageKey, JSON.stringify(existingOrders));
     setOrders(existingOrders);
+
+    // Update coupon usage if applied
+    if (couponCode && !isGuest && customerId) {
+      const coupons = JSON.parse(localStorage.getItem('coupons') || '[]');
+      const updatedCoupons = coupons.map(c => {
+        if (c.code === couponCode) {
+          return { ...c, usedCount: (c.usedCount || 0) + 1 };
+        }
+        return c;
+      });
+      localStorage.setItem('coupons', JSON.stringify(updatedCoupons));
+      // Update user profile
+      const userProfile = JSON.parse(localStorage.getItem(`profile_${customerId}`) || '{}');
+      if (!userProfile.usedCoupons) userProfile.usedCoupons = [];
+      userProfile.usedCoupons.push(couponCode);
+      localStorage.setItem(`profile_${customerId}`, JSON.stringify(userProfile));
+    }
 
     // Clear cart
     setCart([]);
@@ -472,55 +357,49 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
     setPaymentMethod('');
     setShippingDetails(null);
 
-    // ----- WhatsApp message to ADMIN (without link) -----
+    // WhatsApp message to admin
     const itemsList = order.items.map(item => `${item.productName} x ${item.quantity}`).join('\n');
     let message = `🆕 *New Order Placed!*\n\n` +
                   `*Order ID:* ${order.orderId}\n` +
                   `*Customer:* ${order.customerName}\n` +
                   `*Total:* ₹${order.totalAmount.toFixed(2)}\n` +
                   `*Payment Method:* ${method === 'online' ? 'Online Payment' : 'Cash on Delivery'}`;
-
+    if (couponCode) {
+      message += `\n*Coupon Applied:* ${couponCode} (Save ₹${couponDiscount.toFixed(2)})`;
+    }
     if (method === 'cod') {
       message += `\n*Payment Status:* Pending (Cash on Delivery)`;
     } else {
       message += `\n*Payment Status:* Paid (Online)`;
     }
-
     message += `\n\n*Items:*\n${itemsList}\n\n` +
                `*Shipping Address:*\n${shippingDetails.address}, ${shippingDetails.city}, ${shippingDetails.state} - ${shippingDetails.pincode}\n` +
                `*Contact:* ${shippingDetails.mobileNumber}\n`;
-
     if (shippingDetails.locationLink) {
       message += `📍 *Location:* ${shippingDetails.locationLink}\n\n`;
     }
-
     message += `Please confirm or cancel this order from the Admin Panel.`;
 
-    const adminNumber = '917092492023'; // Replace with your admin number
+    const adminNumber = '917092492023'; // Change to your admin number
     const whatsappUrl = `https://wa.me/${adminNumber}?text=${encodeURIComponent(message)}`;
     window.open(whatsappUrl, '_blank');
 
     alert(`✅ Order placed successfully! Order ID: ${order.orderId}\n\nWe will confirm your order shortly.`);
   };
 
-  const handleBackToCart = () => {
-    setShowShipping(false);
-    setShowCart(true);
-  };
-
-  const handleBackToShipping = () => {
-    setShowPayment(false);
-    setShowShipping(true);
-  };
-
+  // ---- Formatting ----
   const formatTime = (hours, minutes, seconds) =>
     `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 
-  const filteredProducts = products.filter(product =>
-    product.productName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    product.productDetails.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // ---- Filter products ----
+  const filteredProducts = products.filter(product => {
+    const matchesSearch = product.productName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          product.productDetails.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = selectedCategory === 'all' || product.category === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
 
+  // ---- Render ----
   if (showShipping) {
     return (
       <ShippingPage
@@ -540,16 +419,20 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
         shippingDetails={shippingDetails}
         onBack={handleBackToShipping}
         onConfirmPurchase={handleConfirmPurchase}
+        customerId={customerId}
+        customerName={customerName}
+        isGuest={isGuest}
       />
     );
   }
 
   return (
     <div className="customer-home">
+      {/* Header */}
       <header className="customer-header">
         <div className="header-content">
           <div>
-            <h1>🌾 SRM </h1>
+            <h1>🌾 SRM</h1>
             <p className="customer-greeting">
               {isGuest ? '👋 Welcome, Guest User!' : `👋 Welcome, ${customerName}!`}
               {isGuest && <span className="guest-badge"> 🎭 Guest</span>}
@@ -570,6 +453,7 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
         </div>
       </header>
 
+      {/* Guest banner */}
       {isGuest && (
         <div className="guest-banner">
           <span>🛍️ You're browsing as a Guest</span>
@@ -577,6 +461,7 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
         </div>
       )}
 
+      {/* Hero + Search */}
       <div className="hero-section">
         <div className="hero-content">
           <h2>Premium Quality Rice</h2>
@@ -592,6 +477,23 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
         </div>
       </div>
 
+      {/* Category Filter */}
+      <div className="category-filter">
+        <button className={`cat-btn ${selectedCategory === 'all' ? 'active' : ''}`} onClick={() => setSelectedCategory('all')}>
+          All
+        </button>
+        {categories.map(cat => (
+          <button
+            key={cat}
+            className={`cat-btn ${selectedCategory === cat ? 'active' : ''}`}
+            onClick={() => setSelectedCategory(cat)}
+          >
+            {cat}
+          </button>
+        ))}
+      </div>
+
+      {/* Products Section */}
       <div className="products-section">
         <h2>Our Premium Rice Collection</h2>
         {filteredProducts.length === 0 ? (
@@ -606,6 +508,9 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
                   <img src={product.image} alt={product.productName} />
                   {product.discount > 0 && (
                     <div className="discount-badge">{product.discount}% OFF</div>
+                  )}
+                  {product.stock === 0 && (
+                    <div className="out-of-stock-overlay">Out of Stock</div>
                   )}
                   <button
                     onClick={() => addToWishlist(product)}
@@ -628,9 +533,20 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
                       <span className="price">₹{product.price}</span>
                     )}
                   </div>
+                  <div className="product-meta">
+                    <span className="category-tag">🏷️ {product.category || 'General'}</span>
+                    <span className={`stock-tag ${product.stock > 0 ? 'in-stock' : 'out-of-stock'}`}>
+                      {product.stock > 0 ? (product.stock <= 5 ? `⚠️ Only ${product.stock} left` : '✅ In Stock') : '❌ Out of Stock'}
+                    </span>
+                    <span className="rating-tag">⭐ {product.averageRating ? product.averageRating.toFixed(1) : 'No ratings'}</span>
+                  </div>
                   <div className="product-actions">
-                    <button onClick={() => addToCart(product)} className="add-to-cart">
-                      🛒 Add to Cart
+                    <button
+                      onClick={() => addToCart(product)}
+                      className="add-to-cart"
+                      disabled={product.stock === 0}
+                    >
+                      {product.stock === 0 ? 'Out of Stock' : '🛒 Add to Cart'}
                     </button>
                     {product.youtubeVideoId && (
                       <button onClick={() => playVideo(product.youtubeVideoId)} className="watch-video">
@@ -648,6 +564,8 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
         )}
       </div>
 
+      {/* ===== MODALS ===== */}
+
       {/* Orders Modal */}
       {showOrders && (
         <div className="modal" onClick={() => setShowOrders(false)}>
@@ -663,7 +581,7 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
             ) : (
               <div className="orders-list">
                 {orders.map(order => {
-                  const timer = order.status === 'Confirmed' 
+                  const timer = order.status === 'Confirmed'
                     ? (orderTimers[order.id] || calculateRemainingTime(order))
                     : null;
                   return (
@@ -694,6 +612,9 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
                       </div>
                       <div className="order-total">
                         <strong>Total: ₹{order.totalAmount.toFixed(2)}</strong>
+                        {order.couponCode && (
+                          <span className="coupon-applied"> 🎫 {order.couponCode} (Save ₹{order.couponDiscount?.toFixed(2)})</span>
+                        )}
                       </div>
                       <div className="order-payment">
                         💳 {order.paymentMethod === 'online' ? 'Online Payment' : 'Cash on Delivery'}
@@ -735,7 +656,7 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
         </div>
       )}
 
-      {/* Product Details Modal */}
+      {/* Product Details Modal (with reviews) */}
       {selectedProduct && (
         <div className="modal" onClick={() => setSelectedProduct(null)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -754,20 +675,70 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
                 <span className="discounted">₹{selectedProduct.price}</span>
               )}
             </div>
+            <div className="product-meta">
+              <span className="category-tag">🏷️ {selectedProduct.category || 'General'}</span>
+              <span className={`stock-tag ${selectedProduct.stock > 0 ? 'in-stock' : 'out-of-stock'}`}>
+                {selectedProduct.stock > 0 ? (selectedProduct.stock <= 5 ? `⚠️ Only ${selectedProduct.stock} left` : '✅ In Stock') : '❌ Out of Stock'}
+              </span>
+              <span className="rating-tag">⭐ {selectedProduct.averageRating ? selectedProduct.averageRating.toFixed(1) : 'No ratings'}</span>
+            </div>
             {selectedProduct.youtubeVideoId && (
-              <div className="modal-video">
-                <button onClick={() => playVideo(selectedProduct.youtubeVideoId)} className="watch-video-btn">
-                  📺 Watch Product Video
-                </button>
-              </div>
+              <button onClick={() => playVideo(selectedProduct.youtubeVideoId)} className="watch-video-btn">
+                📺 Watch Product Video
+              </button>
             )}
             <div className="modal-actions">
-              <button onClick={() => { addToCart(selectedProduct); setSelectedProduct(null); }} className="buy-now">
-                🛒 Add to Cart
+              <button
+                onClick={() => { addToCart(selectedProduct); setSelectedProduct(null); }}
+                className="buy-now"
+                disabled={selectedProduct.stock === 0}
+              >
+                {selectedProduct.stock === 0 ? 'Out of Stock' : '🛒 Add to Cart'}
               </button>
-              <button onClick={() => { addToWishlist(selectedProduct); }} className="wishlist-modal-btn">
+              <button
+                onClick={() => { addToWishlist(selectedProduct); }}
+                className="wishlist-modal-btn"
+              >
                 {wishlist.find(item => item.id === selectedProduct.id) ? '❤️ Remove from Wishlist' : '🤍 Add to Wishlist'}
               </button>
+            </div>
+
+            {/* Reviews Section */}
+            <div className="review-section">
+              <h4>Customer Reviews</h4>
+              {selectedProduct.reviews && selectedProduct.reviews.length > 0 ? (
+                selectedProduct.reviews.map(review => (
+                  <div key={review.id} className="review-item">
+                    <div className="review-header">
+                      <strong>{review.customerName}</strong>
+                      <span className="review-rating">⭐ {review.rating}</span>
+                      <span className="review-date">{new Date(review.date).toLocaleDateString()}</span>
+                    </div>
+                    <p className="review-comment">{review.comment}</p>
+                  </div>
+                ))
+              ) : (
+                <p>No reviews yet. Be the first to review!</p>
+              )}
+              {!isGuest && hasPurchasedProduct(selectedProduct.id) && (
+                <div className="review-form">
+                  <h5>Write a Review</h5>
+                  <div className="rating-select">
+                    <label>Rating:</label>
+                    <select value={reviewRating} onChange={(e) => setReviewRating(parseInt(e.target.value))}>
+                      {[1,2,3,4,5].map(r => <option key={r} value={r}>{r} Star{r>1?'s':''}</option>)}
+                    </select>
+                  </div>
+                  <textarea
+                    value={reviewComment}
+                    onChange={(e) => setReviewComment(e.target.value)}
+                    placeholder="Share your experience..."
+                    rows="3"
+                  ></textarea>
+                  <button onClick={handleSubmitReview} className="submit-review-btn">Submit Review</button>
+                </div>
+              )}
+              {isGuest && <p className="guest-review-note">🔒 Login to write a review.</p>}
             </div>
           </div>
         </div>

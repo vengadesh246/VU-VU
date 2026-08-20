@@ -5,11 +5,17 @@ function AdminPanel({ onLogout }) {
   const [products, setProducts] = useState([]);
   const [orders, setOrders] = useState([]);
   const [activeTab, setActiveTab] = useState('products');
+  const [categories, setCategories] = useState([]);
+  const [coupons, setCoupons] = useState([]);
+  const [editingCategory, setEditingCategory] = useState(null);
+  const [newCategoryName, setNewCategoryName] = useState('');
   const [formData, setFormData] = useState({
     productName: '',
     productDetails: '',
     price: '',
     discount: '',
+    category: '',
+    stock: '',
     youtubeVideoId: '',
     instagramUrl: '',
     image: null,
@@ -24,11 +30,161 @@ function AdminPanel({ onLogout }) {
   const [showDeliveredDropdown, setShowDeliveredDropdown] = useState(false);
   const [showCancelledDropdown, setShowCancelledDropdown] = useState(false);
 
+  // Coupon form state
+  const [couponForm, setCouponForm] = useState({
+    id: null,
+    code: '',
+    discountType: 'percentage',
+    discountValue: '',
+    minOrder: '',
+    expiry: '',
+    maxUses: '',
+    active: true
+  });
+  const [editingCouponId, setEditingCouponId] = useState(null);
+
+  // Review modal
+  const [selectedProductReviews, setSelectedProductReviews] = useState(null);
+  const [showReviewModal, setShowReviewModal] = useState(false);
+
+  // ---- Load data ----
   useEffect(() => {
     loadProducts();
     loadAllOrders();
+    loadCategories();
+    loadCoupons();
   }, []);
 
+  // ---- Categories ----
+  const loadCategories = () => {
+    const saved = localStorage.getItem('categories');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setCategories(parsed);
+          return;
+        }
+      } catch (e) {}
+    }
+    const defaultCats = ['Basmati', 'Brown', 'White', 'Specialty', 'Organic'];
+    setCategories(defaultCats);
+    localStorage.setItem('categories', JSON.stringify(defaultCats));
+  };
+
+  const saveCategories = (cats) => {
+    setCategories(cats);
+    localStorage.setItem('categories', JSON.stringify(cats));
+  };
+
+  const handleAddCategory = () => {
+    const name = newCategoryName.trim();
+    if (!name) return;
+    if (categories.includes(name)) {
+      setMessage('❌ Category already exists');
+      setTimeout(() => setMessage(''), 3000);
+      return;
+    }
+    const updated = [...categories, name];
+    saveCategories(updated);
+    setNewCategoryName('');
+    setMessage('✅ Category added');
+    setTimeout(() => setMessage(''), 3000);
+  };
+
+  const handleDeleteCategory = (cat) => {
+    if (window.confirm(`Delete category "${cat}"?`)) {
+      const updated = categories.filter(c => c !== cat);
+      saveCategories(updated);
+      setMessage('✅ Category deleted');
+      setTimeout(() => setMessage(''), 3000);
+    }
+  };
+
+  // ---- Coupons ----
+  const loadCoupons = () => {
+    const saved = localStorage.getItem('coupons');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        setCoupons(parsed);
+        return;
+      } catch (e) {}
+    }
+    setCoupons([]);
+    localStorage.setItem('coupons', JSON.stringify([]));
+  };
+
+  const saveCoupons = (coups) => {
+    setCoupons(coups);
+    localStorage.setItem('coupons', JSON.stringify(coups));
+  };
+
+  const handleCouponSubmit = (e) => {
+    e.preventDefault();
+    const { code, discountType, discountValue, minOrder, expiry, maxUses, active } = couponForm;
+    if (!code || !discountValue || !minOrder || !expiry || !maxUses) {
+      setMessage('❌ Please fill all fields');
+      setTimeout(() => setMessage(''), 3000);
+      return;
+    }
+    const newCoupon = {
+      id: editingCouponId || Date.now(),
+      code: code.toUpperCase().trim(),
+      discountType,
+      discountValue: parseFloat(discountValue),
+      minOrder: parseFloat(minOrder),
+      expiry: new Date(expiry).toISOString(),
+      maxUses: parseInt(maxUses, 10),
+      usedCount: 0,
+      active: active !== undefined ? active : true
+    };
+    let updatedCoupons;
+    if (editingCouponId) {
+      updatedCoupons = coupons.map(c => c.id === editingCouponId ? { ...newCoupon, usedCount: c.usedCount || 0 } : c);
+    } else {
+      if (coupons.some(c => c.code === newCoupon.code)) {
+        setMessage('❌ Coupon code already exists');
+        setTimeout(() => setMessage(''), 3000);
+        return;
+      }
+      updatedCoupons = [...coupons, newCoupon];
+    }
+    saveCoupons(updatedCoupons);
+    resetCouponForm();
+    setMessage(editingCouponId ? '✅ Coupon updated' : '✅ Coupon created');
+    setTimeout(() => setMessage(''), 3000);
+  };
+
+  const resetCouponForm = () => {
+    setCouponForm({ id: null, code: '', discountType: 'percentage', discountValue: '', minOrder: '', expiry: '', maxUses: '', active: true });
+    setEditingCouponId(null);
+  };
+
+  const handleEditCoupon = (coupon) => {
+    setEditingCouponId(coupon.id);
+    setCouponForm({
+      id: coupon.id,
+      code: coupon.code,
+      discountType: coupon.discountType,
+      discountValue: coupon.discountValue,
+      minOrder: coupon.minOrder,
+      expiry: new Date(coupon.expiry).toISOString().slice(0, 16),
+      maxUses: coupon.maxUses,
+      active: coupon.active
+    });
+  };
+
+  const handleDeleteCoupon = (id) => {
+    if (window.confirm('Delete this coupon?')) {
+      const updated = coupons.filter(c => c.id !== id);
+      saveCoupons(updated);
+      setMessage('✅ Coupon deleted');
+      setTimeout(() => setMessage(''), 3000);
+    }
+  };
+
+  // ---- Products ----
   const getDefaultProducts = () => [
     {
       id: 1,
@@ -42,7 +198,11 @@ function AdminPanel({ onLogout }) {
       image: 'https://images.unsplash.com/photo-1586201375761-83865001e8ac?w=400',
       discountImage: 'https://media.giphy.com/media/3o7abldj0b3rxrZUxW/giphy.gif',
       discountText: '🎉 Special Offer! 15% Off',
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      category: 'Basmati',
+      stock: 50,
+      reviews: [],
+      averageRating: 0
     },
     {
       id: 2,
@@ -56,7 +216,11 @@ function AdminPanel({ onLogout }) {
       image: 'https://images.unsplash.com/photo-1536304993881-ff6e9eefa2a6?w=400',
       discountImage: 'https://media.giphy.com/media/3o7abldj0b3rxrZUxW/giphy.gif',
       discountText: '🔥 10% OFF – Daily Use',
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      category: 'White',
+      stock: 40,
+      reviews: [],
+      averageRating: 0
     },
     {
       id: 3,
@@ -70,7 +234,11 @@ function AdminPanel({ onLogout }) {
       image: 'https://images.unsplash.com/photo-1536304993881-ff6e9eefa2a6?w=400',
       discountImage: 'https://media.giphy.com/media/3o7abldj0b3rxrZUxW/giphy.gif',
       discountText: '🌾 Organic & Healthy',
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      category: 'Brown',
+      stock: 30,
+      reviews: [],
+      averageRating: 0
     },
     {
       id: 4,
@@ -84,7 +252,11 @@ function AdminPanel({ onLogout }) {
       image: 'https://images.unsplash.com/photo-1586201375761-83865001e8ac?w=400',
       discountImage: 'https://media.giphy.com/media/3o7abldj0b3rxrZUxW/giphy.gif',
       discountText: '✨ Premium Aroma',
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      category: 'Basmati',
+      stock: 25,
+      reviews: [],
+      averageRating: 0
     },
     {
       id: 5,
@@ -98,7 +270,11 @@ function AdminPanel({ onLogout }) {
       image: 'https://images.unsplash.com/photo-1536304993881-ff6e9eefa2a6?w=400',
       discountImage: 'https://media.giphy.com/media/3o7abldj0b3rxrZUxW/giphy.gif',
       discountText: '🏡 Daily Essential',
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      category: 'White',
+      stock: 60,
+      reviews: [],
+      averageRating: 0
     },
     {
       id: 6,
@@ -112,7 +288,11 @@ function AdminPanel({ onLogout }) {
       image: 'https://images.unsplash.com/photo-1586201375761-83865001e8ac?w=400',
       discountImage: '',
       discountText: '',
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      category: 'White',
+      stock: 35,
+      reviews: [],
+      averageRating: 0
     },
     {
       id: 7,
@@ -126,7 +306,11 @@ function AdminPanel({ onLogout }) {
       image: 'https://images.unsplash.com/photo-1536304993881-ff6e9eefa2a6?w=400',
       discountImage: 'https://media.giphy.com/media/3o7abldj0b3rxrZUxW/giphy.gif',
       discountText: '❤️ Rich in Nutrients',
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      category: 'Brown',
+      stock: 20,
+      reviews: [],
+      averageRating: 0
     },
     {
       id: 8,
@@ -140,7 +324,11 @@ function AdminPanel({ onLogout }) {
       image: 'https://images.unsplash.com/photo-1586201375761-83865001e8ac?w=400',
       discountImage: 'https://media.giphy.com/media/3o7abldj0b3rxrZUxW/giphy.gif',
       discountText: '⚡ Superfood – 20% Off',
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      category: 'Specialty',
+      stock: 15,
+      reviews: [],
+      averageRating: 0
     },
     {
       id: 9,
@@ -154,7 +342,11 @@ function AdminPanel({ onLogout }) {
       image: 'https://images.unsplash.com/photo-1536304993881-ff6e9eefa2a6?w=400',
       discountImage: 'https://media.giphy.com/media/3o7abldj0b3rxrZUxW/giphy.gif',
       discountText: '🌟 Gourmet Delight',
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      category: 'Specialty',
+      stock: 10,
+      reviews: [],
+      averageRating: 0
     },
     {
       id: 10,
@@ -168,7 +360,11 @@ function AdminPanel({ onLogout }) {
       image: 'https://images.unsplash.com/photo-1586201375761-83865001e8ac?w=400',
       discountImage: 'https://media.giphy.com/media/3o7abldj0b3rxrZUxW/giphy.gif',
       discountText: '🌹 Fragrant & Soft',
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      category: 'Basmati',
+      stock: 22,
+      reviews: [],
+      averageRating: 0
     },
     {
       id: 11,
@@ -182,7 +378,11 @@ function AdminPanel({ onLogout }) {
       image: 'https://images.unsplash.com/photo-1536304993881-ff6e9eefa2a6?w=400',
       discountImage: '',
       discountText: '',
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      category: 'White',
+      stock: 45,
+      reviews: [],
+      averageRating: 0
     },
     {
       id: 12,
@@ -196,7 +396,11 @@ function AdminPanel({ onLogout }) {
       image: 'https://images.unsplash.com/photo-1586201375761-83865001e8ac?w=400',
       discountImage: 'https://media.giphy.com/media/3o7abldj0b3rxrZUxW/giphy.gif',
       discountText: '🎊 Festival Special',
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      category: 'Basmati',
+      stock: 18,
+      reviews: [],
+      averageRating: 0
     },
     {
       id: 13,
@@ -210,7 +414,11 @@ function AdminPanel({ onLogout }) {
       image: 'https://images.unsplash.com/photo-1536304993881-ff6e9eefa2a6?w=400',
       discountImage: 'https://media.giphy.com/media/3o7abldj0b3rxrZUxW/giphy.gif',
       discountText: '🍚 Sweet & Aromatic',
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      category: 'Specialty',
+      stock: 12,
+      reviews: [],
+      averageRating: 0
     },
     {
       id: 14,
@@ -224,7 +432,11 @@ function AdminPanel({ onLogout }) {
       image: 'https://images.unsplash.com/photo-1586201375761-83865001e8ac?w=400',
       discountImage: '',
       discountText: '',
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      category: 'White',
+      stock: 28,
+      reviews: [],
+      averageRating: 0
     },
     {
       id: 15,
@@ -238,7 +450,11 @@ function AdminPanel({ onLogout }) {
       image: 'https://images.unsplash.com/photo-1536304993881-ff6e9eefa2a6?w=400',
       discountImage: 'https://media.giphy.com/media/3o7abldj0b3rxrZUxW/giphy.gif',
       discountText: '🌿 Pure Organic',
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      category: 'Organic',
+      stock: 32,
+      reviews: [],
+      averageRating: 0
     }
   ];
 
@@ -253,9 +469,9 @@ function AdminPanel({ onLogout }) {
         }
       } catch (e) {}
     }
-    const defaultProducts = getDefaultProducts();
-    setProducts(defaultProducts);
-    localStorage.setItem('riceProducts', JSON.stringify(defaultProducts));
+    const defaults = getDefaultProducts();
+    setProducts(defaults);
+    localStorage.setItem('riceProducts', JSON.stringify(defaults));
   };
 
   const loadAllOrders = () => {
@@ -331,8 +547,8 @@ function AdminPanel({ onLogout }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!formData.productName || !formData.productDetails || !formData.price) {
-      setMessage('❌ Please fill all required fields!');
+    if (!formData.productName || !formData.productDetails || !formData.price || !formData.category || !formData.stock) {
+      setMessage('❌ Please fill all required fields (including category and stock)');
       setTimeout(() => setMessage(''), 3000);
       return;
     }
@@ -344,14 +560,17 @@ function AdminPanel({ onLogout }) {
       price: parseFloat(formData.price),
       discount: parseFloat(formData.discount || 0),
       finalPrice: finalPrice,
+      category: formData.category,
+      stock: parseInt(formData.stock, 10),
       youtubeVideoId: extractYouTubeId(formData.youtubeVideoId),
       instagramUrl: formData.instagramUrl || '',
       image: formData.image || 'https://images.unsplash.com/photo-1586201375761-83865001e8ac?w=400',
       discountImage: formData.discountImage || '',
       discountText: formData.discountText || '',
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      reviews: editingId ? products.find(p => p.id === editingId)?.reviews || [] : [],
+      averageRating: editingId ? products.find(p => p.id === editingId)?.averageRating || 0 : 0
     };
-
     let updatedProducts;
     if (editingId) {
       updatedProducts = products.map(p => p.id === editingId ? productData : p);
@@ -372,6 +591,8 @@ function AdminPanel({ onLogout }) {
       productDetails: '',
       price: '',
       discount: '',
+      category: categories.length > 0 ? categories[0] : '',
+      stock: '',
       youtubeVideoId: '',
       instagramUrl: '',
       image: null,
@@ -390,6 +611,8 @@ function AdminPanel({ onLogout }) {
       productDetails: product.productDetails,
       price: product.price,
       discount: product.discount,
+      category: product.category || (categories.length > 0 ? categories[0] : ''),
+      stock: product.stock || 0,
       youtubeVideoId: product.youtubeVideoId,
       instagramUrl: product.instagramUrl || '',
       image: product.image,
@@ -411,7 +634,36 @@ function AdminPanel({ onLogout }) {
     }
   };
 
-  // ===== Orders: updateOrderStatus (sets confirmationDate) =====
+  // Review modal handlers
+  const openReviewModal = (productId) => {
+    const product = products.find(p => p.id === productId);
+    if (product) {
+      setSelectedProductReviews(product);
+      setShowReviewModal(true);
+    }
+  };
+
+  const handleDeleteReview = (productId, reviewId) => {
+    if (window.confirm('Delete this review?')) {
+      const updatedProducts = products.map(p => {
+        if (p.id === productId) {
+          const updatedReviews = p.reviews.filter(r => r.id !== reviewId);
+          const avg = updatedReviews.length > 0 ? updatedReviews.reduce((sum, r) => sum + r.rating, 0) / updatedReviews.length : 0;
+          return { ...p, reviews: updatedReviews, averageRating: avg };
+        }
+        return p;
+      });
+      setProducts(updatedProducts);
+      localStorage.setItem('riceProducts', JSON.stringify(updatedProducts));
+      setMessage('✅ Review deleted');
+      setTimeout(() => setMessage(''), 3000);
+      // Refresh modal
+      const updatedProduct = updatedProducts.find(p => p.id === productId);
+      setSelectedProductReviews(updatedProduct);
+    }
+  };
+
+  // Order management functions (unchanged)
   const updateOrderStatus = (orderId, status) => {
     const orderToUpdate = orders.find(o => o.id === orderId);
     if (!orderToUpdate) {
@@ -459,10 +711,9 @@ function AdminPanel({ onLogout }) {
       success = updateOrderInStorage('guestOrders');
     } else if (customerId) {
       const customerKey = `${customerId}_orders`;
-      const legacyKey = `${customerId}orders`;
       success = updateOrderInStorage(customerKey);
       if (!success) {
-        success = updateOrderInStorage(legacyKey);
+        success = updateOrderInStorage(`${customerId}orders`);
       }
     }
 
@@ -493,7 +744,7 @@ function AdminPanel({ onLogout }) {
     if (orderFilter === 'delivered') return orders.filter(o => o.status === 'Delivered');
     if (orderFilter === 'cancelled') return orders.filter(o => o.status === 'Cancelled');
     if (orderFilter === 'pending') return orders.filter(o => o.status === 'Pending');
-    return orders.filter(o => o.status === orderFilter); // for 'confirmed'
+    return orders.filter(o => o.status === orderFilter);
   };
 
   const stats = getOrderStats();
@@ -501,6 +752,7 @@ function AdminPanel({ onLogout }) {
   const deliveredOrders = orders.filter(o => o.status === 'Delivered');
   const cancelledOrders = orders.filter(o => o.status === 'Cancelled');
 
+  // ---- Render ----
   return (
     <div className="admin-panel">
       <div className="admin-header">
@@ -517,11 +769,17 @@ function AdminPanel({ onLogout }) {
         <button className={`tab-btn ${activeTab === 'orders' ? 'active' : ''}`} onClick={() => setActiveTab('orders')}>
           📋 Orders ({orders.length})
         </button>
+        <button className={`tab-btn ${activeTab === 'categories' ? 'active' : ''}`} onClick={() => setActiveTab('categories')}>
+          🏷️ Categories
+        </button>
+        <button className={`tab-btn ${activeTab === 'coupons' ? 'active' : ''}`} onClick={() => setActiveTab('coupons')}>
+          🎫 Coupons ({coupons.length})
+        </button>
       </div>
 
       <div className="admin-content">
-        {activeTab === 'products' ? (
-          // Product Management Section
+        {/* ----- PRODUCTS TAB ----- */}
+        {activeTab === 'products' && (
           <>
             <div className="product-form-container">
               <h2>{editingId ? '✏️ Edit Product' : '➕ Add New Product'}</h2>
@@ -544,6 +802,20 @@ function AdminPanel({ onLogout }) {
                   <div className="form-group">
                     <label>Discount (%)</label>
                     <input type="number" name="discount" value={formData.discount} onChange={handleInputChange} placeholder="Leave empty for no discount" step="0.01" />
+                  </div>
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Category *</label>
+                    <select name="category" value={formData.category} onChange={handleInputChange} required>
+                      <option value="">Select Category</option>
+                      {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Stock Quantity *</label>
+                    <input type="number" name="stock" value={formData.stock} onChange={handleInputChange} placeholder="e.g., 50" min="0" step="1" required />
                   </div>
                 </div>
 
@@ -616,18 +888,22 @@ function AdminPanel({ onLogout }) {
                           <span className="final-price">₹{product.price}</span>
                         )}
                       </div>
-                      {product.discountImage && (
-                        <div className="product-discount-banner">
-                          <img src={product.discountImage} alt="Discount" />
-                          {product.discountText && <div className="discount-banner-text">{product.discountText}</div>}
-                        </div>
-                      )}
+                      <div className="product-meta">
+                        <span className="category-badge">🏷️ {product.category || 'Uncategorized'}</span>
+                        <span className={`stock-badge ${product.stock > 0 ? 'in-stock' : 'out-of-stock'}`}>
+                          {product.stock > 0 ? `📦 ${product.stock} left` : '❌ Out of Stock'}
+                        </span>
+                        <span className="rating-badge">
+                          ⭐ {product.averageRating ? product.averageRating.toFixed(1) : 'No ratings'}
+                        </span>
+                      </div>
                       <div className="social-links">
                         {product.youtubeVideoId && <span className="youtube-icon">📺 Watch Video</span>}
                         {product.instagramUrl && (
                           <a href={product.instagramUrl} target="_blank" rel="noopener noreferrer" className="instagram-link">📸 Instagram</a>
                         )}
                       </div>
+                      <button onClick={() => openReviewModal(product.id)} className="view-reviews-btn">📝 Reviews ({product.reviews?.length || 0})</button>
                     </div>
                     <div className="admin-actions">
                       <button onClick={() => handleEdit(product)} className="edit-btn">✏️ Edit</button>
@@ -638,8 +914,10 @@ function AdminPanel({ onLogout }) {
               </div>
             </div>
           </>
-        ) : (
-          // Orders Tab
+        )}
+
+        {/* ----- ORDERS TAB (unchanged) ----- */}
+        {activeTab === 'orders' && (
           <>
             <div className="orders-stats">
               <div className="stat-card">
@@ -779,6 +1057,7 @@ function AdminPanel({ onLogout }) {
                       <div className="order-summary">
                         <div className="payment-info">
                           <span>💳 {order.paymentMethod === 'online' ? 'Online Payment' : 'Cash on Delivery'}</span>
+                          {order.couponCode && <span className="coupon-applied">🎫 Coupon: {order.couponCode} (Save ₹{order.couponDiscount?.toFixed(2)})</span>}
                           <span className="order-total">Total: ₹{order.totalAmount.toFixed(2)}</span>
                         </div>
                       </div>
@@ -833,7 +1112,125 @@ function AdminPanel({ onLogout }) {
             </div>
           </>
         )}
+
+        {/* ----- CATEGORIES TAB ----- */}
+        {activeTab === 'categories' && (
+          <div className="categories-management">
+            <h2>🏷️ Manage Categories</h2>
+            <div className="category-form">
+              <input type="text" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} placeholder="New category name" />
+              <button onClick={handleAddCategory} className="add-category-btn">Add Category</button>
+            </div>
+            <div className="category-list">
+              {categories.map(cat => (
+                <div key={cat} className="category-item">
+                  <span>{cat}</span>
+                  <button onClick={() => handleDeleteCategory(cat)} className="delete-cat-btn">🗑️</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ----- COUPONS TAB ----- */}
+        {activeTab === 'coupons' && (
+          <div className="coupons-management">
+            <h2>🎫 Manage Coupons</h2>
+            <form onSubmit={handleCouponSubmit} className="coupon-form">
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Coupon Code *</label>
+                  <input type="text" value={couponForm.code} onChange={(e) => setCouponForm({...couponForm, code: e.target.value.toUpperCase()})} placeholder="e.g., SAVE10" required />
+                </div>
+                <div className="form-group">
+                  <label>Discount Type</label>
+                  <select value={couponForm.discountType} onChange={(e) => setCouponForm({...couponForm, discountType: e.target.value})}>
+                    <option value="percentage">Percentage (%)</option>
+                    <option value="fixed">Fixed (₹)</option>
+                  </select>
+                </div>
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Discount Value *</label>
+                  <input type="number" value={couponForm.discountValue} onChange={(e) => setCouponForm({...couponForm, discountValue: e.target.value})} placeholder="e.g., 10" step="0.01" required />
+                </div>
+                <div className="form-group">
+                  <label>Min Order (₹) *</label>
+                  <input type="number" value={couponForm.minOrder} onChange={(e) => setCouponForm({...couponForm, minOrder: e.target.value})} placeholder="e.g., 500" step="0.01" required />
+                </div>
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Expiry Date *</label>
+                  <input type="datetime-local" value={couponForm.expiry} onChange={(e) => setCouponForm({...couponForm, expiry: e.target.value})} required />
+                </div>
+                <div className="form-group">
+                  <label>Max Uses *</label>
+                  <input type="number" value={couponForm.maxUses} onChange={(e) => setCouponForm({...couponForm, maxUses: e.target.value})} placeholder="e.g., 100" min="1" required />
+                </div>
+              </div>
+              <div className="form-group">
+                <label>
+                  <input type="checkbox" checked={couponForm.active} onChange={(e) => setCouponForm({...couponForm, active: e.target.checked})} />
+                  Active
+                </label>
+              </div>
+              <div className="form-buttons">
+                <button type="submit" className="submit-btn">{editingCouponId ? 'Update Coupon' : 'Create Coupon'}</button>
+                {editingCouponId && <button type="button" onClick={resetCouponForm} className="cancel-btn">Cancel</button>}
+              </div>
+            </form>
+            <div className="coupons-list">
+              {coupons.map(coupon => (
+                <div key={coupon.id} className="coupon-card">
+                  <div className="coupon-header">
+                    <span className="coupon-code">{coupon.code}</span>
+                    <span className={`coupon-status ${coupon.active ? 'active' : 'inactive'}`}>
+                      {coupon.active ? 'Active' : 'Inactive'}
+                    </span>
+                  </div>
+                  <div className="coupon-details">
+                    <p>Discount: {coupon.discountType === 'percentage' ? `${coupon.discountValue}%` : `₹${coupon.discountValue}`}</p>
+                    <p>Min Order: ₹{coupon.minOrder}</p>
+                    <p>Expires: {new Date(coupon.expiry).toLocaleString()}</p>
+                    <p>Used: {coupon.usedCount || 0} / {coupon.maxUses}</p>
+                  </div>
+                  <div className="coupon-actions">
+                    <button onClick={() => handleEditCoupon(coupon)} className="edit-btn">✏️</button>
+                    <button onClick={() => handleDeleteCoupon(coupon.id)} className="delete-btn">🗑️</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* Review Modal */}
+      {showReviewModal && selectedProductReviews && (
+        <div className="modal" onClick={() => setShowReviewModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <span className="close" onClick={() => setShowReviewModal(false)}>&times;</span>
+            <h2>📝 Reviews for {selectedProductReviews.productName}</h2>
+            {selectedProductReviews.reviews && selectedProductReviews.reviews.length > 0 ? (
+              selectedProductReviews.reviews.map(review => (
+                <div key={review.id} className="review-item">
+                  <div className="review-header">
+                    <strong>{review.customerName}</strong>
+                    <span className="review-rating">⭐ {review.rating}</span>
+                    <span className="review-date">{new Date(review.date).toLocaleDateString()}</span>
+                  </div>
+                  <p className="review-comment">{review.comment}</p>
+                  <button onClick={() => handleDeleteReview(selectedProductReviews.id, review.id)} className="delete-review-btn">🗑️ Delete</button>
+                </div>
+              ))
+            ) : (
+              <p>No reviews yet.</p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
