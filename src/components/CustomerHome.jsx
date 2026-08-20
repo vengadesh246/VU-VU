@@ -37,6 +37,12 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState('');
 
+  // Footer modals
+  const [showRefundModal, setShowRefundModal] = useState(false);
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
+  const [showContactModal, setShowContactModal] = useState(false);
+
   // ---- Helper functions ----
   const getCustomerKey = (baseKey) => `${customerId}_${baseKey}`;
 
@@ -83,7 +89,6 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
         }
       } catch (e) {}
     }
-    // Fallback: if no products, set empty array (admin should have created them)
     setProducts([]);
   };
 
@@ -315,7 +320,6 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
       deliveryTime: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
     };
 
-    // Save order
     let existingOrders = [];
     const storageKey = isGuest ? 'guestOrders' : `${customerId}_orders`;
     const storedOrders = localStorage.getItem(storageKey);
@@ -330,7 +334,6 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
     localStorage.setItem(storageKey, JSON.stringify(existingOrders));
     setOrders(existingOrders);
 
-    // Update coupon usage if applied
     if (couponCode && !isGuest && customerId) {
       const coupons = JSON.parse(localStorage.getItem('coupons') || '[]');
       const updatedCoupons = coupons.map(c => {
@@ -340,14 +343,12 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
         return c;
       });
       localStorage.setItem('coupons', JSON.stringify(updatedCoupons));
-      // Update user profile
       const userProfile = JSON.parse(localStorage.getItem(`profile_${customerId}`) || '{}');
       if (!userProfile.usedCoupons) userProfile.usedCoupons = [];
       userProfile.usedCoupons.push(couponCode);
       localStorage.setItem(`profile_${customerId}`, JSON.stringify(userProfile));
     }
 
-    // Clear cart
     setCart([]);
     const cartKey = isGuest ? 'guestCart' : getCustomerKey('userCart');
     localStorage.setItem(cartKey, JSON.stringify([]));
@@ -357,7 +358,6 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
     setPaymentMethod('');
     setShippingDetails(null);
 
-    // WhatsApp message to admin
     const itemsList = order.items.map(item => `${item.productName} x ${item.quantity}`).join('\n');
     let message = `🆕 *New Order Placed!*\n\n` +
                   `*Order ID:* ${order.orderId}\n` +
@@ -564,7 +564,241 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
         )}
       </div>
 
-      {/* ===== MODALS ===== */}
+      {/* ===== FOOTER ===== */}
+      <footer className="site-footer">
+        <div className="footer-container">
+          {/* Contact Us */}
+          <div className="footer-section">
+            <h3>📞 Contact Us</h3>
+            <div className="footer-contact">
+              <p>
+                <strong>SOWDAMMAL RICE MILL</strong><br />
+                12/2, Palani Road,<br />
+                KT Hospital Opposite,<br />
+                Dindigul – 624001.
+              </p>
+              <p>📱 <a href="tel:+917092492023">+91 7092492023</a> <span className="whatsapp-badge">(WhatsApp)</span></p>
+              <p>✉️ <a href="mailto:SOWDAMMALRICEMILL2025@GMAIL.COM">SOWDAMMALRICEMILL2025@GMAIL.COM</a></p>
+            </div>
+            <div className="footer-social">
+              <a href="https://www.instagram.com/unakkaaga_unmaiyaaga?igsi=eXRhZDRudmJxcWhu" target="_blank" rel="noopener noreferrer" className="social-link instagram">
+                <span>📸 Instagram</span>
+              </a>
+              <a href="#" target="_blank" rel="noopener noreferrer" className="social-link youtube">
+                <span>▶️ YouTube</span>
+              </a>
+            </div>
+          </div>
+
+          {/* Categories */}
+          <div className="footer-section">
+            <h3>🏷️ Categories</h3>
+            <ul className="footer-links">
+              <li>
+                <button className="footer-link-btn" onClick={() => { setSelectedCategory('all'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
+                  All Products
+                </button>
+              </li>
+              {categories.map(cat => (
+                <li key={cat}>
+                  <button className="footer-link-btn" onClick={() => { setSelectedCategory(cat); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
+                    {cat}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Services */}
+          <div className="footer-section">
+            <h3>⚙️ Services</h3>
+            <ul className="footer-links">
+              <li>
+                <button className="footer-link-btn" onClick={() => setShowRefundModal(true)}>
+                  🔄 Refunds / Cancellations
+                </button>
+              </li>
+              <li>
+                <button className="footer-link-btn" onClick={() => setShowPrivacyModal(true)}>
+                  🔒 Privacy Policy
+                </button>
+              </li>
+              <li>
+                <button className="footer-link-btn" onClick={() => setShowTermsModal(true)}>
+                  📜 Terms & Conditions
+                </button>
+              </li>
+              <li>
+                <button className="footer-link-btn" onClick={() => setShowContactModal(true)}>
+                  📧 Contact
+                </button>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <div className="footer-bottom">
+          <p>© {new Date().getFullYear()} SOWDAMMAL RICE MILL. All rights reserved.</p>
+        </div>
+      </footer>
+
+      {/* ===== FOOTER MODALS ===== */}
+
+      {/* Refunds / Cancellations Modal */}
+      {showRefundModal && (
+        <div className="modal" onClick={() => setShowRefundModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <span className="close" onClick={() => setShowRefundModal(false)}>&times;</span>
+            <h2>🔄 Refunds & Cancellations</h2>
+            <div className="modal-body">
+              <h3>7‑Day Replacement Guarantee</h3>
+              <p>
+                At <strong>SOWDAMMAL RICE MILL</strong>, we take pride in the quality of our rice. 
+                If you are not completely satisfied with your purchase, we offer a <strong>7‑day 
+                replacement</strong> on all rice bags.
+              </p>
+              <ul>
+                <li>✅ <strong>Hassle‑free returns</strong> – Simply contact us within 7 days of delivery.</li>
+                <li>✅ <strong>Full replacement</strong> – We’ll replace the product at no extra cost.</li>
+                <li>✅ <strong>Quality assured</strong> – Every bag is checked for purity and freshness.</li>
+                <li>✅ <strong>No questions asked</strong> – Your satisfaction is our priority.</li>
+              </ul>
+              <p>
+                <strong>How to initiate a return?</strong><br />
+                Call or WhatsApp us at <a href="tel:+917092492023">+91 7092492023</a> or email 
+                <a href="mailto:SOWDAMMALRICEMILL2025@GMAIL.COM"> SOWDAMMALRICEMILL2025@GMAIL.COM</a> 
+                with your order ID. We’ll arrange the replacement within 24 hours.
+              </p>
+              <p className="refund-note">
+                ⚡ <em>“Fresh rice, delivered with care – your trust is our reward.”</em>
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Privacy Policy Modal */}
+      {showPrivacyModal && (
+        <div className="modal" onClick={() => setShowPrivacyModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <span className="close" onClick={() => setShowPrivacyModal(false)}>&times;</span>
+            <h2>🔒 Privacy Policy</h2>
+            <div className="modal-body">
+              <p>
+                At <strong>SOWDAMMAL RICE MILL</strong>, we respect your privacy and are committed 
+                to protecting your personal information. This policy explains how we collect, use, 
+                and safeguard your data.
+              </p>
+              <h4>What we collect:</h4>
+              <ul>
+                <li>• Name, email, phone number, and shipping address (for order processing).</li>
+                <li>• Order history and preferences (to improve our service).</li>
+              </ul>
+              <h4>How we use your data:</h4>
+              <ul>
+                <li>• To process and deliver your orders.</li>
+                <li>• To communicate with you about your orders and updates.</li>
+                <li>• To improve our products and website experience.</li>
+              </ul>
+              <h4>Data security:</h4>
+              <ul>
+                <li>• Your data is stored securely and is never shared with third parties.</li>
+                <li>• We use industry‑standard measures to protect your information.</li>
+              </ul>
+              <h4>Your rights:</h4>
+              <ul>
+                <li>• You can request access, correction, or deletion of your data at any time.</li>
+                <li>• Contact us at <a href="mailto:SOWDAMMALRICEMILL2025@GMAIL.COM">SOWDAMMALRICEMILL2025@GMAIL.COM</a> for any privacy concerns.</li>
+              </ul>
+              <p className="policy-note">
+                🌾 <em>“Your trust is the foundation of our business.”</em>
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Terms & Conditions Modal */}
+      {showTermsModal && (
+        <div className="modal" onClick={() => setShowTermsModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <span className="close" onClick={() => setShowTermsModal(false)}>&times;</span>
+            <h2>📜 Terms & Conditions</h2>
+            <div className="modal-body">
+              <p>
+                Welcome to <strong>SOWDAMMAL RICE MILL</strong>. By using our website and placing 
+                an order, you agree to the following terms.
+              </p>
+              <h4>Order & Delivery</h4>
+              <ul>
+                <li>• Orders are processed within 24 hours of confirmation.</li>
+                <li>• Delivery is made within 2‑3 business days after confirmation.</li>
+                <li>• You will receive a WhatsApp notification with tracking details.</li>
+              </ul>
+              <h4>Payment</h4>
+              <ul>
+                <li>• We accept Cash on Delivery (COD) and Online Payments (UPI, Bank Transfer).</li>
+                <li>• For online payments, a confirmation link will be sent via WhatsApp.</li>
+              </ul>
+              <h4>Returns & Cancellations</h4>
+              <ul>
+                <li>• Cancellations are accepted within 12 hours of placing the order.</li>
+                <li>• Returns are accepted within 7 days of delivery (see Refunds policy).</li>
+              </ul>
+              <h4>Product Quality</h4>
+              <ul>
+                <li>• All rice is freshly milled and packed with care.</li>
+                <li>• If you receive a damaged or defective product, contact us immediately.</li>
+              </ul>
+              <h4>Contact</h4>
+              <ul>
+                <li>• For any queries, reach us at <a href="tel:+917092492023">+91 7092492023</a> or 
+                  <a href="mailto:SOWDAMMALRICEMILL2025@GMAIL.COM"> SOWDAMMALRICEMILL2025@GMAIL.COM</a>.
+                </li>
+              </ul>
+              <p className="terms-note">
+                📌 <em>“We strive to deliver the finest quality rice with the best service.”</em>
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Contact Modal */}
+      {showContactModal && (
+        <div className="modal" onClick={() => setShowContactModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <span className="close" onClick={() => setShowContactModal(false)}>&times;</span>
+            <h2>📧 Contact Us</h2>
+            <div className="modal-body">
+              <p>
+                <strong>SOWDAMMAL RICE MILL</strong><br />
+                12/2, Palani Road,<br />
+                KT Hospital Opposite,<br />
+                Dindigul – 624001.
+              </p>
+              <p>
+                📞 <strong>Phone / WhatsApp:</strong> <a href="tel:+917092492023">+91 7092492023</a>
+              </p>
+              <p>
+                ✉️ <strong>Email:</strong> <a href="mailto:SOWDAMMALRICEMILL2025@GMAIL.COM">SOWDAMMALRICEMILL2025@GMAIL.COM</a>
+              </p>
+              <hr />
+              <p>
+                📸 <strong>Instagram:</strong> <a href="https://www.instagram.com/unakkaaga_unmaiyaaga?igsi=eXRhZDRudmJxcWhu" target="_blank" rel="noopener noreferrer">@unakkaaga_unmaiyaaga</a>
+              </p>
+              <p>
+                ▶️ <strong>YouTube:</strong> <a href="#" target="_blank" rel="noopener noreferrer">Our Channel</a> (coming soon)
+              </p>
+              <p className="contact-note">
+                💬 <em>We’d love to hear from you! Reach out anytime.</em>
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== OTHER MODALS ===== */}
 
       {/* Orders Modal */}
       {showOrders && (
