@@ -27,6 +27,9 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
   const [customerName, setCustomerName] = useState('');
   const [isGuest, setIsGuest] = useState(false);
 
+  // Buy Now direct flow (independent of cart)
+  const [buyNowProduct, setBuyNowProduct] = useState(null);
+
   // Category filter
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [categories, setCategories] = useState([]);
@@ -197,6 +200,18 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
     showToast(`✅ Added ${product.productName} to cart!`);
   };
 
+  // ---- Buy Now: skip cart, go straight to shipping ----
+  const handleBuyNow = (product) => {
+    if (product.stock <= 0) {
+      showToast('❌ Sorry, this product is out of stock!');
+      return;
+    }
+    setBuyNowProduct(product);
+    setShowCart(false);
+    setSelectedProduct(null);
+    setShowShipping(true);
+  };
+
   const addToWishlist = (product) => {
     const exists = wishlist.find(item => item.id === product.id);
     let updatedWishlist;
@@ -236,6 +251,7 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
       alert('Your cart is empty!');
       return;
     }
+    setBuyNowProduct(null);
     setShowCart(false);
     setShowShipping(true);
   };
@@ -249,6 +265,12 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
   const handleBackToCart = () => {
     setShowShipping(false);
     setShowCart(true);
+  };
+
+  // Back from Buy Now shipping → return to home (not cart)
+  const handleBackFromBuyNow = () => {
+    setBuyNowProduct(null);
+    setShowShipping(false);
   };
 
   const handleBackToShipping = () => {
@@ -295,6 +317,11 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
 
   // ---- Order confirmation (with coupon support) ----
   const handleConfirmPurchase = (method, amount, paymentSuccess, couponCode, couponDiscount) => {
+    const isBuyNow = !!buyNowProduct;
+    const sourceItems = isBuyNow
+      ? [{ ...buyNowProduct, quantity: 1 }]
+      : cart;
+
     const order = {
       id: Date.now(),
       orderId: `ORD${Date.now().toString().slice(-8)}`,
@@ -302,7 +329,7 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
       customerName: isGuest ? 'Guest User' : customerName,
       loginId: customerLoginId || 'guest',
       isGuest: isGuest,
-      items: cart.map(item => ({
+      items: sourceItems.map(item => ({
         id: item.id,
         productName: item.productName,
         quantity: item.quantity,
@@ -349,9 +376,13 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
       localStorage.setItem(`profile_${customerId}`, JSON.stringify(userProfile));
     }
 
-    setCart([]);
-    const cartKey = isGuest ? 'guestCart' : getCustomerKey('userCart');
-    localStorage.setItem(cartKey, JSON.stringify([]));
+    // Only clear cart when it's a cart checkout
+    if (!isBuyNow) {
+      setCart([]);
+      const cartKey = isGuest ? 'guestCart' : getCustomerKey('userCart');
+      localStorage.setItem(cartKey, JSON.stringify([]));
+    }
+    setBuyNowProduct(null);
 
     setShowPayment(false);
     setShowShipping(false);
@@ -401,10 +432,11 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
 
   // ---- Render ----
   if (showShipping) {
+    const checkoutCart = buyNowProduct ? [{ ...buyNowProduct, quantity: 1 }] : cart;
     return (
       <ShippingPage
-        cart={cart}
-        onBack={handleBackToCart}
+        cart={checkoutCart}
+        onBack={buyNowProduct ? handleBackFromBuyNow : handleBackToCart}
         onProceedToPayment={handleProceedToPayment}
         customerId={customerId}
         customerName={customerName}
@@ -413,9 +445,10 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
   }
 
   if (showPayment) {
+    const checkoutCart = buyNowProduct ? [{ ...buyNowProduct, quantity: 1 }] : cart;
     return (
       <PaymentPage
-        cart={cart}
+        cart={checkoutCart}
         shippingDetails={shippingDetails}
         onBack={handleBackToShipping}
         onConfirmPurchase={handleConfirmPurchase}
@@ -439,11 +472,27 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
             </p>
           </div>
           <div className="header-right">
-            <button onClick={() => setShowOrders(true)} className="orders-icon">
-              📦 Orders ({orders.length})
+            <button
+              onClick={() => setShowOrders(true)}
+              className="orders-icon header-action-btn"
+              aria-label="My Orders"
+            >
+              <span className="btn-icon">📦</span>
+              <span className="btn-label">Orders</span>
+              {orders.length > 0 && <span className="btn-badge">{orders.length}</span>}
             </button>
-            <button onClick={() => setShowCart(true)} className="cart-icon">
-              🛒 Cart ({cart.reduce((sum, item) => sum + item.quantity, 0)})
+            <button
+              onClick={() => setShowCart(true)}
+              className="cart-icon header-action-btn"
+              aria-label="My Cart"
+            >
+              <span className="btn-icon">🛒</span>
+              <span className="btn-label">Cart</span>
+              {cart.reduce((sum, item) => sum + item.quantity, 0) > 0 && (
+                <span className="btn-badge">
+                  {cart.reduce((sum, item) => sum + item.quantity, 0)}
+                </span>
+              )}
             </button>
             <button onClick={() => setShowWishlist(true)} className="wishlist-icon">
               ❤️ Wishlist ({wishlist.length})
@@ -540,22 +589,35 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
                     </span>
                     <span className="rating-tag">⭐ {product.averageRating ? product.averageRating.toFixed(1) : 'No ratings'}</span>
                   </div>
+
+                  {/* PRIMARY ACTION ROW: Add to Cart | Buy Now */}
                   <div className="product-actions">
-                    <button
-                      onClick={() => addToCart(product)}
-                      className="add-to-cart"
-                      disabled={product.stock === 0}
-                    >
-                      {product.stock === 0 ? 'Out of Stock' : '🛒 Add to Cart'}
-                    </button>
-                    {product.youtubeVideoId && (
-                      <button onClick={() => playVideo(product.youtubeVideoId)} className="watch-video">
-                        📺 Watch
+                    <div className="product-actions-primary">
+                      <button
+                        onClick={() => addToCart(product)}
+                        className="add-to-cart"
+                        disabled={product.stock === 0}
+                      >
+                        {product.stock === 0 ? 'Out of Stock' : '🛒 Add to Cart'}
                       </button>
-                    )}
-                    <button onClick={() => setSelectedProduct(product)} className="view-details">
-                      👁️ View
-                    </button>
+                      <button
+                        onClick={() => handleBuyNow(product)}
+                        className="buy-now"
+                        disabled={product.stock === 0}
+                      >
+                        ⚡ Buy Now
+                      </button>
+                    </div>
+                    <div className="product-actions-secondary">
+                      {product.youtubeVideoId && (
+                        <button onClick={() => playVideo(product.youtubeVideoId)} className="watch-video">
+                          📺 Watch
+                        </button>
+                      )}
+                      <button onClick={() => setSelectedProduct(product)} className="view-details">
+                        👁️ View
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -929,6 +991,15 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
               >
                 {selectedProduct.stock === 0 ? 'Out of Stock' : '🛒 Add to Cart'}
               </button>
+              <button
+                onClick={() => handleBuyNow(selectedProduct)}
+                className="buy-now-direct"
+                disabled={selectedProduct.stock === 0}
+              >
+                ⚡ Buy Now
+              </button>
+            </div>
+            <div className="modal-actions-secondary">
               <button
                 onClick={() => { addToWishlist(selectedProduct); }}
                 className="wishlist-modal-btn"
