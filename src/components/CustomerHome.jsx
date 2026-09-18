@@ -471,29 +471,37 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
               {isGuest && <span className="guest-badge"> 🎭 Guest</span>}
             </p>
           </div>
-          <div className="header-right">
-            <button
-              onClick={() => setShowOrders(true)}
-              className="orders-icon header-action-btn"
-              aria-label="My Orders"
-            >
-              <span className="btn-icon">📦</span>
-              <span className="btn-label">Orders</span>
-              {orders.length > 0 && <span className="btn-badge">{orders.length}</span>}
-            </button>
-            <button
-              onClick={() => setShowCart(true)}
-              className="cart-icon header-action-btn"
-              aria-label="My Cart"
-            >
-              <span className="btn-icon">🛒</span>
-              <span className="btn-label">Cart</span>
+                    <div className="header-right">
+            <div className="header-action-wrapper">
+              <button
+                onClick={() => setShowOrders(true)}
+                className="orders-icon header-action-btn"
+                aria-label="My Orders"
+              >
+                <span className="btn-icon">📦</span>
+                <span className="btn-label">Orders</span>
+              </button>
+              {orders.length > 0 && (
+                <span className="btn-badge">{orders.length}</span>
+              )}
+            </div>
+
+            <div className="header-action-wrapper">
+              <button
+                onClick={() => setShowCart(true)}
+                className="cart-icon header-action-btn"
+                aria-label="My Cart"
+              >
+                <span className="btn-icon">🛒</span>
+                <span className="btn-label">Cart</span>
+              </button>
               {cart.reduce((sum, item) => sum + item.quantity, 0) > 0 && (
                 <span className="btn-badge">
                   {cart.reduce((sum, item) => sum + item.quantity, 0)}
                 </span>
               )}
-            </button>
+            </div>
+
             <button onClick={() => setShowWishlist(true)} className="wishlist-icon">
               ❤️ Wishlist ({wishlist.length})
             </button>

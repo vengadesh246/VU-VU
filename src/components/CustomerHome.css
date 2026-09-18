@@ -32,9 +32,11 @@
 }
 .header-right {
   display: flex;
-  gap: clamp(5px,1vw,10px);
+  gap: clamp(8px,1.2vw,12px);
   align-items: center;
   flex-wrap: wrap;
+  /* give the badge a little breathing room above the row */
+  padding-top: 8px;
 }
 .customer-greeting {
   font-size: clamp(12px,1vw,14px);
@@ -56,6 +58,17 @@
    HEADER ACTION BUTTONS (Orders & Cart)
    Bigger, animated, mobile-attracting
    ============================================ */
+
+/* Wrapper holds the button + the badge.
+   The badge lives here, NOT inside the button,
+   so it never gets clipped by the button's
+   overflow: hidden (used for the shine sweep). */
+.header-action-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+}
+
 .header-action-btn {
   position: relative;
   display: inline-flex;
@@ -71,7 +84,7 @@
   transition: transform 0.25s ease, box-shadow 0.25s ease;
   white-space: nowrap;
   letter-spacing: 0.3px;
-  overflow: hidden;
+  overflow: hidden;          /* clips the shine sweep only */
   isolation: isolate;
   will-change: transform;
 }
@@ -82,26 +95,6 @@
 }
 .header-action-btn .btn-label {
   display: inline-block;
-}
-
-/* badge for count */
-.header-action-btn .btn-badge {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  min-width: 22px;
-  height: 22px;
-  padding: 0 6px;
-  border-radius: 999px;
-  background: #ff3b3b;
-  color: #fff;
-  font-size: 11px;
-  font-weight: 800;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 0 0 2px #ffffff, 0 2px 6px rgba(0,0,0,0.3);
-  animation: badgePop 2s ease-in-out infinite;
 }
 
 /* Shine sweep overlay */
@@ -121,6 +114,29 @@
   transform: skewX(-20deg);
   animation: shineSweep 3.2s ease-in-out infinite;
   z-index: -1;
+  pointer-events: none;
+}
+
+/* Badge — sits on the wrapper, top-right, fully visible */
+.header-action-wrapper .btn-badge {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: #ff3b3b;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 0 2px #ffffff, 0 2px 6px rgba(0,0,0,0.3);
+  animation: badgePop 2s ease-in-out infinite;
+  z-index: 10;
   pointer-events: none;
 }
 
@@ -1160,20 +1176,28 @@
   .header-right {
     justify-content: center;
     width: 100%;
-    gap: 8px;
+    gap: 10px;
+    padding-top: 10px;
   }
-  /* Keep header action buttons BIG on mobile */
+
+  /* Wrapper flexes, button fills it */
+  .header-action-wrapper {
+    flex: 1 1 auto;
+    min-width: 120px;
+  }
+  .header-action-wrapper .header-action-btn {
+    width: 100%;
+    justify-content: center;
+  }
   .header-action-btn {
     padding: 10px 16px;
     font-size: 14px;
     border-radius: 12px;
-    flex: 1 1 auto;
-    justify-content: center;
-    min-width: 120px;
   }
   .header-action-btn .btn-icon {
     font-size: 20px;
   }
+
   .header-content h1 { font-size: 22px; }
   .hero-content h2 { font-size: 28px; }
   .hero-content p { font-size: 15px; }
@@ -1185,13 +1209,8 @@
     grid-template-columns: 1fr 1fr;
     gap: 15px;
   }
-  /* Keep Add to Cart + Buy Now side by side on mobile */
-  .product-actions-primary {
-    flex-direction: row;
-  }
-  .product-actions-secondary {
-    flex-direction: row;
-  }
+  .product-actions-primary { flex-direction: row; }
+  .product-actions-secondary { flex-direction: row; }
   .add-to-cart, .buy-now, .watch-video, .view-details {
     font-size: 12px;
     padding: 9px 6px;
@@ -1249,22 +1268,29 @@
   .hero-content h2 { font-size: 22px; }
   .hero-content p { font-size: 13px; }
   .header-content h1 { font-size: 18px; }
-  .header-right { gap: 6px; }
+  .header-right { gap: 8px; }
+
+  .header-action-wrapper {
+    flex: 1 1 calc(50% - 8px);
+    min-width: 0;
+  }
   .header-action-btn {
     padding: 9px 12px;
     font-size: 13px;
-    min-width: 100px;
-    flex: 1 1 calc(50% - 6px);
     justify-content: center;
   }
   .header-action-btn .btn-icon {
     font-size: 18px;
   }
-  .header-action-btn .btn-badge {
-    min-width: 18px;
-    height: 18px;
-    font-size: 10px;
+  .header-action-wrapper .btn-badge {
+    min-width: 20px;
+    height: 20px;
+    font-size: 11px;
+    padding: 0 5px;
+    top: -6px;
+    right: -6px;
   }
+
   .wishlist-icon, .logout-btn {
     font-size: 11px;
     padding: 7px 10px;
@@ -1309,12 +1335,23 @@
   .product-details { padding: 12px; }
   .product-details h3 { font-size: 15px; }
   .discounted-price, .price { font-size: 18px; }
+
+  .header-action-wrapper {
+    flex: 1 1 calc(50% - 6px);
+    min-width: 0;
+  }
   .header-action-btn {
     font-size: 12px;
     padding: 8px 10px;
-    min-width: 0;
   }
   .header-action-btn .btn-icon { font-size: 16px; }
+  .header-action-wrapper .btn-badge {
+    min-width: 18px;
+    height: 18px;
+    font-size: 10px;
+    padding: 0 4px;
+  }
+
   .header-content h1 { font-size: 16px; }
   .hero-section { height: 160px; }
   .hero-content h2 { font-size: 18px; }
@@ -1444,10 +1481,8 @@
   .buy-now {
     animation: none !important;
   }
-}
-@media (prefers-reduced-motion: reduce) {
   .header-action-btn::before { display: none; }
-  .header-action-btn .btn-badge { animation: none; }
+  .header-action-wrapper .btn-badge { animation: none; }
 }
 
 /* ----- Coupon applied chip ----- */
