@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './LoginPage.css';
+import { signInAnonymously, signInWithEmailAndPassword } from 'firebase/auth';
+import { auth } from '../firebase';
 
 function LoginPage({ onLogin }) {
   const [emailOrMobile, setEmailOrMobile] = useState('');
@@ -11,6 +13,7 @@ function LoginPage({ onLogin }) {
   const [adminMobile, setAdminMobile] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
   const [adminError, setAdminError] = useState('');
+  const [adminDebug, setAdminDebug] = useState('');
 
   useEffect(() => {
     const savedSession = localStorage.getItem('userSession');
@@ -77,101 +80,196 @@ function LoginPage({ onLogin }) {
     }
   };
 
-  const handleCustomerLogin = (loginId, customerName) => {
-    const existingCustomers = JSON.parse(localStorage.getItem('customerUsers') || '[]');
-    let existingCustomer = existingCustomers.find(c => c.loginId === loginId);
-    let customerData;
-    let userProfile = {};
+  const handleCustomerLogin = async (loginId, customerName) => {
+    try {
+      const userCredential = await signInAnonymously(auth);
+      const firebaseUid = userCredential.user.uid;
 
-    if (existingCustomer) {
-      customerData = {
-        customerId: existingCustomer.customerId,
+      const existingCustomers = JSON.parse(localStorage.getItem('customerUsers') || '[]');
+      let existingCustomer = existingCustomers.find(c => c.loginId === loginId);
+      let customerData;
+      let userProfile = {};
+
+      if (existingCustomer) {
+        customerData = {
+          customerId: existingCustomer.customerId,
+          loginId: loginId,
+          name: existingCustomer.name || customerName || loginId,
+          isNew: false,
+          firebaseUid: firebaseUid
+        };
+        userProfile = JSON.parse(localStorage.getItem(`profile_${existingCustomer.customerId}`) || '{}');
+      } else {
+        const newCustomerId = `CUST${Date.now().toString().slice(-6)}${Math.floor(Math.random() * 1000)}`;
+        const newCustomer = {
+          customerId: newCustomerId,
+          loginId: loginId,
+          name: customerName || loginId,
+          createdDate: new Date().toISOString(),
+          firebaseUid: firebaseUid
+        };
+        existingCustomers.push(newCustomer);
+        localStorage.setItem('customerUsers', JSON.stringify(existingCustomers));
+        customerData = {
+          customerId: newCustomerId,
+          loginId: loginId,
+          name: newCustomer.name,
+          isNew: true,
+          firebaseUid: firebaseUid
+        };
+        userProfile = {
+          name: newCustomer.name,
+          mobile: loginId,
+          address: '',
+          city: '',
+          pincode: '',
+          profilePicture: ''
+        };
+        localStorage.setItem(`profile_${newCustomerId}`, JSON.stringify(userProfile));
+        alert(`✅ Welcome ${customerData.name}! Your account has been created.`);
+      }
+
+      const session = {
+        userType: 'user',
+        customerId: customerData.customerId,
         loginId: loginId,
-        name: existingCustomer.name || customerName || loginId,
-        isNew: false
+        name: customerData.name,
+        profile: userProfile,
+        firebaseUid: firebaseUid,
+        expiry: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
       };
-      userProfile = JSON.parse(localStorage.getItem(`profile_${existingCustomer.customerId}`) || '{}');
-    } else {
-      const newCustomerId = `CUST${Date.now().toString().slice(-6)}${Math.floor(Math.random() * 1000)}`;
-      const newCustomer = {
-        customerId: newCustomerId,
-        loginId: loginId,
-        name: customerName || loginId,
-        createdDate: new Date().toISOString()
+      localStorage.setItem('userSession', JSON.stringify(session));
+      onLogin('user', customerData);
+    } catch (error) {
+      console.error('Login error:', error);
+      setError('❌ Login failed. Please try again.');
+    }
+  };
+
+  const handleGuestLogin = async () => {
+    try {
+      const userCredential = await signInAnonymously(auth);
+      const firebaseUid = userCredential.user.uid;
+      const guestId = `GUEST${Date.now().toString().slice(-8)}`;
+      const guestName = 'Guest User';
+      const guestData = {
+        customerId: guestId,
+        loginId: `guest_${guestId}`,
+        name: guestName,
+        isGuest: true,
+        isNew: true,
+        firebaseUid: firebaseUid
       };
-      existingCustomers.push(newCustomer);
-      localStorage.setItem('customerUsers', JSON.stringify(existingCustomers));
-      customerData = {
-        customerId: newCustomerId,
-        loginId: loginId,
-        name: newCustomer.name,
-        isNew: true
+      localStorage.setItem('guestSession', JSON.stringify({
+        guestId: guestId,
+        loginTime: new Date().toISOString()
+      }));
+      const session = {
+        userType: 'guest',
+        customerId: guestId,
+        loginId: `guest_${guestId}`,
+        name: guestName,
+        isGuest: true,
+        firebaseUid: firebaseUid,
+        expiry: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000).toISOString()
       };
-      userProfile = {
-        name: newCustomer.name,
-        mobile: loginId,
-        address: '',
-        city: '',
-        pincode: '',
-        profilePicture: ''
-      };
-      localStorage.setItem(`profile_${newCustomerId}`, JSON.stringify(userProfile));
-      alert(`✅ Welcome ${customerData.name}! Your account has been created.`);
+      localStorage.setItem('userSession', JSON.stringify(session));
+      alert('👋 Continuing as Guest! Your cart will be saved temporarily.');
+      onLogin('user', guestData);
+    } catch (error) {
+      console.error('Guest login error:', error);
+      alert('❌ Could not start guest session. Please try again.');
+    }
+  };
+
+  // ============================================
+  // ADMIN LOGIN
+  // Field accepts EITHER:
+  //   - 7092492023  (or +917092492023)
+  //   - sowdammalricemill246@gmail.com
+  // Both authenticate against Firebase email:
+  //   sowdammalricemill246@gmail.com
+  // ============================================
+  const handleAdminLoginSubmit = async (e) => {
+    e.preventDefault();
+    setAdminError('');
+    setAdminDebug('');
+
+    const ADMIN_MOBILE = '7092492023';
+    const ADMIN_EMAIL  = 'sowdammalricemill246@gmail.com';
+
+    // ---- Normalize whatever the user typed ----
+    const rawInput     = (adminMobile || '').trim();
+    const noSpaces     = rawInput.replace(/\s+/g, '');        // remove ALL whitespace
+    const noCountry    = noSpaces.replace(/^\+91/, '');       // strip leading +91
+    const noAllDigits  = noCountry.replace(/\D/g, '');        // for mobile compare
+    const asEmail      = noCountry.toLowerCase();             // for email compare
+
+    const isMobileMatch = noAllDigits === ADMIN_MOBILE;
+    const isEmailMatch  = asEmail === ADMIN_EMAIL.toLowerCase();
+
+    // ---- Debug output (visible on screen + console) ----
+    const dbg =
+      `Input: "${rawInput}" | Normalized: "${noCountry}" | ` +
+      `Mobile match: ${isMobileMatch} | Email match: ${isEmailMatch}`;
+    console.log('🟡 Admin login attempt →', dbg);
+    setAdminDebug(dbg);
+
+    if (!isMobileMatch && !isEmailMatch) {
+      setAdminError('❌ Enter admin mobile 7092492023 or admin email sowdammalricemill246@gmail.com');
+      return;
     }
 
-    const session = {
-      userType: 'user',
-      customerId: customerData.customerId,
-      loginId: loginId,
-      name: customerData.name,
-      profile: userProfile,
-      expiry: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-    };
-    localStorage.setItem('userSession', JSON.stringify(session));
-    onLogin('user', customerData);
-  };
+    if (!adminPassword || adminPassword.length < 6) {
+      setAdminError('❌ Password must be at least 6 characters');
+      return;
+    }
 
-  const handleGuestLogin = () => {
-    const guestId = `GUEST${Date.now().toString().slice(-8)}`;
-    const guestName = 'Guest User';
-    const guestData = {
-      customerId: guestId,
-      loginId: `guest_${guestId}`,
-      name: guestName,
-      isGuest: true,
-      isNew: true
-    };
-    localStorage.setItem('guestSession', JSON.stringify({
-      guestId: guestId,
-      loginTime: new Date().toISOString()
-    }));
-    const session = {
-      userType: 'guest',
-      customerId: guestId,
-      loginId: `guest_${guestId}`,
-      name: guestName,
-      isGuest: true,
-      expiry: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000).toISOString()
-    };
-    localStorage.setItem('userSession', JSON.stringify(session));
-    alert('👋 Continuing as Guest! Your cart will be saved temporarily.');
-    onLogin('user', guestData);
-  };
+    try {
+      // Always authenticate against the Firebase email
+      const cred = await signInWithEmailAndPassword(auth, ADMIN_EMAIL, adminPassword);
+      const adminUid = cred.user.uid;
+      console.log('✅ Admin UID:', adminUid);
 
-  const handleAdminLoginSubmit = (e) => {
-    e.preventDefault();
-    if (adminMobile === '7092492023' && adminPassword === '462425') {
-      // Login as admin
       const session = {
         userType: 'admin',
+        uid: adminUid,
         expiry: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
       };
       localStorage.setItem('userSession', JSON.stringify(session));
       localStorage.setItem('ecommerceUser', JSON.stringify({ role: 'admin' }));
       onLogin('admin');
       setShowAdminModal(false);
-    } else {
-      setAdminError('❌ Invalid admin credentials');
+    } catch (error) {
+      console.error('❌ Admin login error:', error);
+      console.error('   Code:', error.code);
+      console.error('   Message:', error.message);
+
+      let msg = '❌ Login failed.';
+      switch (error.code) {
+        case 'auth/invalid-credential':
+        case 'auth/wrong-password':
+          msg = '❌ Wrong password. Reset it in Firebase Console → Authentication → Users.';
+          break;
+        case 'auth/user-not-found':
+          msg = '❌ No Firebase user with email ' + ADMIN_EMAIL + '. Create it in Auth → Users.';
+          break;
+        case 'auth/operation-not-allowed':
+          msg = '❌ Email/Password provider is DISABLED. Enable it in Firebase Console → Authentication → Sign-in method.';
+          break;
+        case 'auth/invalid-email':
+          msg = '❌ Email format is invalid: ' + ADMIN_EMAIL;
+          break;
+        case 'auth/too-many-requests':
+          msg = '❌ Too many attempts. Wait a few minutes and try again.';
+          break;
+        case 'auth/network-request-failed':
+          msg = '❌ Network error. Check your internet connection.';
+          break;
+        default:
+          msg = '❌ ' + (error.code || 'Unknown error') + ': ' + (error.message || '');
+      }
+      setAdminError(msg);
     }
   };
 
@@ -200,7 +298,6 @@ function LoginPage({ onLogin }) {
 
   return (
     <div className="login-container">
-      {/* Small A icon in corner */}
       <button className="admin-icon-btn" onClick={() => setShowAdminModal(true)}>A</button>
 
       <div className="login-card">
@@ -271,12 +368,13 @@ function LoginPage({ onLogin }) {
             <h3>👑 Admin Login</h3>
             <form onSubmit={handleAdminLoginSubmit}>
               <div className="input-group">
-                <label>Admin Mobile</label>
+                <label>Admin Mobile or Email</label>
                 <input
                   type="text"
                   value={adminMobile}
                   onChange={(e) => setAdminMobile(e.target.value)}
-                  placeholder="Enter admin mobile"
+                  placeholder="7092492023 or sowdammalricemill246@gmail.com"
+                  autoComplete="off"
                   required
                 />
               </div>
@@ -286,11 +384,25 @@ function LoginPage({ onLogin }) {
                   type="password"
                   value={adminPassword}
                   onChange={(e) => setAdminPassword(e.target.value)}
-                  placeholder="Enter password"
+                  placeholder="Enter admin password"
+                  autoComplete="off"
                   required
                 />
               </div>
               {adminError && <div className="error-message">{adminError}</div>}
+              {adminDebug && (
+                <div style={{
+                  fontSize: '11px',
+                  color: '#666',
+                  background: '#f3f3f3',
+                  padding: '6px 8px',
+                  borderRadius: '6px',
+                  marginTop: '6px',
+                  wordBreak: 'break-all'
+                }}>
+                  <strong>Debug:</strong> {adminDebug}
+                </div>
+              )}
               <button type="submit" className="login-btn">Login as Admin</button>
               <button type="button" className="cancel-btn" onClick={() => setShowAdminModal(false)}>Cancel</button>
             </form>
