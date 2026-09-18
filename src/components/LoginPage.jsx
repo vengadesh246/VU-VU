@@ -81,106 +81,138 @@ function LoginPage({ onLogin }) {
   };
 
   const handleCustomerLogin = async (loginId, customerName) => {
-    try {
-      const userCredential = await signInAnonymously(auth);
-      const firebaseUid = userCredential.user.uid;
+  try {
+    const userCredential = await signInAnonymously(auth);
+    const firebaseUid = userCredential.user.uid;
 
-      const existingCustomers = JSON.parse(localStorage.getItem('customerUsers') || '[]');
-      let existingCustomer = existingCustomers.find(c => c.loginId === loginId);
-      let customerData;
-      let userProfile = {};
+    const existingCustomers = JSON.parse(localStorage.getItem('customerUsers') || '[]');
+    let existingCustomer = existingCustomers.find(c => c.loginId === loginId);
+    let customerData;
+    let userProfile = {};
 
-      if (existingCustomer) {
-        customerData = {
-          customerId: existingCustomer.customerId,
-          loginId: loginId,
-          name: existingCustomer.name || customerName || loginId,
-          isNew: false,
-          firebaseUid: firebaseUid
-        };
-        userProfile = JSON.parse(localStorage.getItem(`profile_${existingCustomer.customerId}`) || '{}');
-      } else {
-        const newCustomerId = `CUST${Date.now().toString().slice(-6)}${Math.floor(Math.random() * 1000)}`;
-        const newCustomer = {
-          customerId: newCustomerId,
-          loginId: loginId,
-          name: customerName || loginId,
-          createdDate: new Date().toISOString(),
-          firebaseUid: firebaseUid
-        };
-        existingCustomers.push(newCustomer);
-        localStorage.setItem('customerUsers', JSON.stringify(existingCustomers));
-        customerData = {
-          customerId: newCustomerId,
-          loginId: loginId,
-          name: newCustomer.name,
-          isNew: true,
-          firebaseUid: firebaseUid
-        };
-        userProfile = {
-          name: newCustomer.name,
-          mobile: loginId,
-          address: '',
-          city: '',
-          pincode: '',
-          profilePicture: ''
-        };
-        localStorage.setItem(`profile_${newCustomerId}`, JSON.stringify(userProfile));
-        alert(`✅ Welcome ${customerData.name}! Your account has been created.`);
-      }
-
-      const session = {
-        userType: 'user',
-        customerId: customerData.customerId,
+    if (existingCustomer) {
+      customerData = {
+        customerId: existingCustomer.customerId,
         loginId: loginId,
-        name: customerData.name,
-        profile: userProfile,
-        firebaseUid: firebaseUid,
-        expiry: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+        name: existingCustomer.name || customerName || loginId,
+        isNew: false,
+        firebaseUid: firebaseUid
       };
-      localStorage.setItem('userSession', JSON.stringify(session));
-      onLogin('user', customerData);
-    } catch (error) {
-      console.error('Login error:', error);
-      setError('❌ Login failed. Please try again.');
-    }
-  };
-
-  const handleGuestLogin = async () => {
-    try {
-      const userCredential = await signInAnonymously(auth);
-      const firebaseUid = userCredential.user.uid;
-      const guestId = `GUEST${Date.now().toString().slice(-8)}`;
-      const guestName = 'Guest User';
-      const guestData = {
-        customerId: guestId,
-        loginId: `guest_${guestId}`,
-        name: guestName,
-        isGuest: true,
+      userProfile = JSON.parse(localStorage.getItem(`profile_${existingCustomer.customerId}`) || '{}');
+    } else {
+      const newCustomerId = `CUST${Date.now().toString().slice(-6)}${Math.floor(Math.random() * 1000)}`;
+      const newCustomer = {
+        customerId: newCustomerId,
+        loginId: loginId,
+        name: customerName || loginId,
+        createdDate: new Date().toISOString(),
+        firebaseUid: firebaseUid
+      };
+      existingCustomers.push(newCustomer);
+      localStorage.setItem('customerUsers', JSON.stringify(existingCustomers));
+      customerData = {
+        customerId: newCustomerId,
+        loginId: loginId,
+        name: newCustomer.name,
         isNew: true,
         firebaseUid: firebaseUid
       };
-      localStorage.setItem('guestSession', JSON.stringify({
-        guestId: guestId,
-        loginTime: new Date().toISOString()
-      }));
-      const session = {
-        userType: 'guest',
-        customerId: guestId,
-        loginId: `guest_${guestId}`,
-        name: guestName,
-        isGuest: true,
-        firebaseUid: firebaseUid,
-        expiry: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000).toISOString()
+      userProfile = {
+        name: newCustomer.name,
+        mobile: loginId,
+        address: '',
+        city: '',
+        pincode: '',
+        profilePicture: ''
       };
-      localStorage.setItem('userSession', JSON.stringify(session));
-      alert('👋 Continuing as Guest! Your cart will be saved temporarily.');
-      onLogin('user', guestData);
-    } catch (error) {
-      console.error('Guest login error:', error);
-      alert('❌ Could not start guest session. Please try again.');
+      localStorage.setItem(`profile_${newCustomerId}`, JSON.stringify(userProfile));
+      alert(`✅ Welcome ${customerData.name}! Your account has been created.`);
     }
-  };
+
+    const session = {
+      userType: 'user',
+      customerId: customerData.customerId,
+      loginId: loginId,
+      name: customerData.name,
+      profile: userProfile,
+      firebaseUid: firebaseUid,
+      expiry: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+    };
+    localStorage.setItem('userSession', JSON.stringify(session));
+    onLogin('user', customerData);
+  } catch (error) {
+    console.error('❌ Customer login error:', error);
+    console.error('   Code:', error.code);
+    console.error('   Message:', error.message);
+
+    let msg = '❌ Login failed.';
+    switch (error.code) {
+      case 'auth/operation-not-allowed':
+        msg = '❌ Anonymous sign-in is DISABLED. Enable it in Firebase Console → Authentication → Sign-in method → Anonymous.';
+        break;
+      case 'auth/api-key-not-valid':
+      case 'auth/invalid-api-key':
+        msg = '❌ Firebase API key is invalid. Check src/firebase.jsx config.';
+        break;
+      case 'auth/network-request-failed':
+        msg = '❌ Network error. Check your internet connection.';
+        break;
+      case 'auth/too-many-requests':
+        msg = '❌ Too many requests. Please wait a few minutes and try again.';
+        break;
+      default:
+        msg = '❌ ' + (error.code || 'Unknown error') + ': ' + (error.message || '');
+    }
+    setError(msg);
+    setIsLoading(false);
+  }
+};
+
+ const handleGuestLogin = async () => {
+  try {
+    const userCredential = await signInAnonymously(auth);
+    const firebaseUid = userCredential.user.uid;
+    const guestId = `GUEST${Date.now().toString().slice(-8)}`;
+    const guestName = 'Guest User';
+    const guestData = {
+      customerId: guestId,
+      loginId: `guest_${guestId}`,
+      name: guestName,
+      isGuest: true,
+      isNew: true,
+      firebaseUid: firebaseUid
+    };
+    localStorage.setItem('guestSession', JSON.stringify({
+      guestId: guestId,
+      loginTime: new Date().toISOString()
+    }));
+    const session = {
+      userType: 'guest',
+      customerId: guestId,
+      loginId: `guest_${guestId}`,
+      name: guestName,
+      isGuest: true,
+      firebaseUid: firebaseUid,
+      expiry: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000).toISOString()
+    };
+    localStorage.setItem('userSession', JSON.stringify(session));
+    alert('👋 Continuing as Guest! Your cart will be saved temporarily.');
+    onLogin('user', guestData);
+  } catch (error) {
+    console.error('❌ Guest login error:', error);
+    console.error('   Code:', error.code);
+
+    let msg = '❌ Could not start guest session.';
+    if (error.code === 'auth/operation-not-allowed') {
+      msg = '❌ Anonymous sign-in is DISABLED. Enable it in Firebase Console → Authentication → Sign-in method → Anonymous.';
+    } else if (error.code === 'auth/network-request-failed') {
+      msg = '❌ Network error. Check your internet.';
+    } else {
+      msg = '❌ ' + (error.code || 'Unknown error');
+    }
+    alert(msg);
+  }
+};
 
   // ============================================
   // ADMIN LOGIN

@@ -5,12 +5,12 @@ import { getAuth } from 'firebase/auth';
 
 // 🔴 Your Firebase config — replace the values with the ones from your Firebase Console
 const firebaseConfig = {
-  apiKey: "AIzaSy....................",
-  authDomain: "srm-rice-mill.firebaseapp.com",
-  projectId: "srm-rice-mill",
-  storageBucket: "srm-rice-mill.appspot.com",
-  messagingSenderId: "123456789012",
-  appId: "1:123456789012:web:abc123def456"
+ apiKey: "AIzaSyAw8rgjLNmgvJGbPCOLI8dAtGcX14jhYY8",
+  authDomain: "vu-vu-srm.firebaseapp.com",
+  projectId: "vu-vu-srm",
+  storageBucket: "vu-vu-srm.firebasestorage.app",
+  messagingSenderId: "545632218833",
+  appId: "1:545632218833:web:88fc5deb2f90c3be54dff0"
 };
 
 const app = initializeApp(firebaseConfig);
