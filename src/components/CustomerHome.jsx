@@ -9,12 +9,9 @@ import {
   addDoc,
   query,
   where,
-  orderBy,
   serverTimestamp
 } from 'firebase/firestore';
 import './CustomerHome.css';
-
-const UPI_ID = 'sowdammalricemill246@okicici';
 
 function CustomerHome({ onLogout, customerId, customerLoginId }) {
   const [products, setProducts] = useState([]);
@@ -32,188 +29,195 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
   const [showWishlist, setShowWishlist] = useState(false);
   const [showOrders, setShowOrders] = useState(false);
   const [orders, setOrders] = useState([]);
+  const [ordersError, setOrdersError] = useState('');
+  const [ordersLoading, setOrdersLoading] = useState(true);
   const [orderTimers, setOrderTimers] = useState({});
   const [customerName, setCustomerName] = useState('');
   const [isGuest, setIsGuest] = useState(false);
-
   const [buyNowProduct, setBuyNowProduct] = useState(null);
-
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [categories, setCategories] = useState([]);
-
   const [reviewProduct, setReviewProduct] = useState(null);
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState('');
-
   const [showRefundModal, setShowRefundModal] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [showContactModal, setShowContactModal] = useState(false);
 
   const getCustomerKey = (baseKey) => `${customerId}_${baseKey}`;
+  const cartStorageKey = () => (isGuest ? 'guestCart' : `${customerId}_userCart`);
+  const wishStorageKey = () => (isGuest ? 'guestWishlist' : `${customerId}_userWishlist`);
 
-  // ---- Load data on mount ----
+  // =====================================================
+  // ---- LOAD DATA ----
+  // =====================================================
   useEffect(() => {
     const isGuestUser = customerId?.startsWith('GUEST');
     setIsGuest(isGuestUser);
 
+    // Name
     if (isGuestUser) {
       setCustomerName('Guest User');
     } else {
       const savedName = localStorage.getItem(getCustomerKey('customerName'));
-      if (savedName) {
-        setCustomerName(savedName);
-      } else {
+      if (savedName) setCustomerName(savedName);
+      else {
         const name = prompt('Please enter your name to continue:', '');
-        if (name) {
-          setCustomerName(name);
-          localStorage.setItem(getCustomerKey('customerName'), name);
-        } else {
-          setCustomerName('Customer');
-          localStorage.setItem(getCustomerKey('customerName'), 'Customer');
-        }
+        const finalName = name && name.trim() ? name.trim() : 'Customer';
+        setCustomerName(finalName);
+        localStorage.setItem(getCustomerKey('customerName'), finalName);
       }
     }
 
-    // ✅ FIX: use isGuestUser (the local variable) instead of `isGuest` state,
-    // because setIsGuest above is asynchronous.
-    const cartKey     = isGuestUser ? 'guestCart'     : `${customerId}_userCart`;
-    const wishlistKey = isGuestUser ? 'guestWishlist' : `${customerId}_userWishlist`;
-
+    // Cart / Wishlist / Categories (localStorage)
     try {
-      const savedCart = localStorage.getItem(cartKey);
+      const savedCart = localStorage.getItem(isGuestUser ? 'guestCart' : `${customerId}_userCart`);
       setCart(savedCart ? JSON.parse(savedCart) : []);
     } catch { setCart([]); }
 
     try {
-      const savedWish = localStorage.getItem(wishlistKey);
+      const savedWish = localStorage.getItem(isGuestUser ? 'guestWishlist' : `${customerId}_userWishlist`);
       setWishlist(savedWish ? JSON.parse(savedWish) : []);
     } catch { setWishlist([]); }
 
-    // Categories
     const savedCats = localStorage.getItem('categories');
     if (savedCats) {
       try { setCategories(JSON.parse(savedCats)); }
-      catch { setCategories(['Basmati','Brown','White','Specialty','Organic']); }
+      catch { setCategories(['Basmati', 'Brown', 'White', 'Specialty', 'Organic']); }
     } else {
-      setCategories(['Basmati','Brown','White','Specialty','Organic']);
+      setCategories(['Basmati', 'Brown', 'White', 'Specialty', 'Organic']);
     }
 
-    // ---- REAL-TIME PRODUCTS ----
-    const unsubscribeProducts = onSnapshot(
+    // ---- PRODUCTS (real-time) ----
+    const unsubProducts = onSnapshot(
       collection(db, 'products'),
-      (snapshot) => {
-        const productsData = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-        productsData.sort((a, b) => {
-          const aT = a.createdAt?.seconds || 0;
-          const bT = b.createdAt?.seconds || 0;
-          return bT - aT;
-        });
-        setProducts(productsData);
+      (snap) => {
+        const arr = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        arr.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+        setProducts(arr);
       },
-      (error) => console.error('Products load error:', error)
+      (err) => console.error('❌ Products listener error:', err)
     );
 
-    // ---- REAL-TIME ORDERS ----
-    // NOTE: If Firestore complains about a missing composite index for
-    // where('customerId','==',x) + orderBy('orderDate','desc'),
-    // either create the index (link appears in console) OR remove orderBy()
-    // and sort client-side below.
-    const ordersQuery = query(
-      collection(db, 'orders'),
-      where('customerId', '==', customerId)
-    );
-    const unsubscribeOrders = onSnapshot(ordersQuery, (snapshot) => {
-      const ordersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      ordersData.sort((a, b) => {
-        const aT = a.orderDate?.seconds || 0;
-        const bT = b.orderDate?.seconds || 0;
-        return bT - aT;
-      });
-      setOrders(ordersData);
-      const timers = {};
-      ordersData.forEach(order => {
-        if (order.status === 'Confirmed' && order.confirmationDate) {
-          timers[order.id] = calculateRemainingTime(order);
+    // ---- ORDERS (real-time) — only if we have a customerId ----
+    let unsubOrders = () => {};
+    if (customerId) {
+      setOrdersLoading(true);
+      setOrdersError('');
+
+      // ⚠️ IMPORTANT: no orderBy() here — sorting is done client-side
+      // to avoid the composite-index requirement.
+      const ordersQuery = query(
+        collection(db, 'orders'),
+        where('customerId', '==', customerId)
+      );
+
+      unsubOrders = onSnapshot(
+        ordersQuery,
+        (snap) => {
+          const arr = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          arr.sort((a, b) => (b.orderDate?.seconds || 0) - (a.orderDate?.seconds || 0));
+          setOrders(arr);
+          setOrdersLoading(false);
+
+          // Timers for Confirmed orders
+          const timers = {};
+          arr.forEach(o => {
+            if (o.status === 'Confirmed' && o.confirmationDate) {
+              timers[o.id] = calculateRemainingTime(o);
+            }
+          });
+          setOrderTimers(timers);
+        },
+        (err) => {
+          console.error('❌ Orders listener error:', err);
+          setOrdersLoading(false);
+          setOrdersError(
+            `Orders failed to load (${err.code || 'unknown'}). ` +
+            `Check Firestore rules and try again.`
+          );
         }
-      });
-      setOrderTimers(timers);
-    }, (error) => {
-      console.error('Error loading orders:', error);
-    });
+      );
+    } else {
+      setOrdersLoading(false);
+      setOrders([]);
+    }
 
+    // ---- Timer ticker ----
     const interval = setInterval(() => {
-      setOrders(prevOrders => {
-        const updatedTimers = {};
-        prevOrders.forEach(order => {
-          if (order.status === 'Confirmed' && order.confirmationDate) {
-            updatedTimers[order.id] = calculateRemainingTime(order);
+      setOrders(prev => {
+        const t = {};
+        prev.forEach(o => {
+          if (o.status === 'Confirmed' && o.confirmationDate) {
+            t[o.id] = calculateRemainingTime(o);
           }
         });
-        setOrderTimers(updatedTimers);
-        return prevOrders;
+        setOrderTimers(t);
+        return prev;
       });
     }, 1000);
 
     return () => {
-      unsubscribeProducts();
-      unsubscribeOrders();
+      unsubProducts();
+      unsubOrders();
       clearInterval(interval);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customerId]);
 
-  const loadCategories = () => {
-    const saved = localStorage.getItem('categories');
-    if (saved) {
-      try { setCategories(JSON.parse(saved)); return; } catch {}
-    }
-    setCategories(['Basmati','Brown','White','Specialty','Organic']);
-  };
-
+  // =====================================================
+  // Helpers
+  // =====================================================
   const calculateRemainingTime = (order) => {
-    const startDate = order.status === 'Confirmed' && order.confirmationDate
+    const start = order.status === 'Confirmed' && order.confirmationDate
       ? order.confirmationDate
       : order.orderDate;
-    const orderTime = new Date(startDate).getTime();
-    const currentTime = new Date().getTime();
-    const elapsed = currentTime - orderTime;
-    const remaining = 24 * 60 * 60 * 1000 - elapsed;
+    const t = new Date(start).getTime();
+    const remaining = 24 * 60 * 60 * 1000 - (Date.now() - t);
     if (remaining <= 0) return { hours: 0, minutes: 0, seconds: 0, expired: true };
-    const hours = Math.floor(remaining / (60 * 60 * 1000));
-    const minutes = Math.floor((remaining % (60 * 60 * 1000)) / (60 * 1000));
-    const seconds = Math.floor((remaining % (60 * 1000)) / 1000);
-    return { hours, minutes, seconds, expired: false };
+    return {
+      hours: Math.floor(remaining / 3600000),
+      minutes: Math.floor((remaining % 3600000) / 60000),
+      seconds: Math.floor((remaining % 60000) / 1000),
+      expired: false,
+    };
   };
 
-  const cartStorageKey = () => isGuest ? 'guestCart' : `${customerId}_userCart`;
-  const wishStorageKey = () => isGuest ? 'guestWishlist' : `${customerId}_userWishlist`;
+  const formatTime = (h, m, s) =>
+    `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+
+  const showToast = (message) => {
+    const el = document.createElement('div');
+    el.className = 'toast-message';
+    el.innerHTML = message;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 2000);
+  };
 
   const addToCart = (product) => {
-    if (product.stock <= 0) {
+    if (!product.stock || product.stock <= 0) {
       showToast('❌ Sorry, this product is out of stock!');
       return;
     }
-    const existingItem = cart.find(item => item.id === product.id);
-    let updatedCart;
-    if (existingItem) {
-      if (existingItem.quantity >= product.stock) {
+    const existing = cart.find(i => i.id === product.id);
+    let updated;
+    if (existing) {
+      if (existing.quantity >= product.stock) {
         showToast(`⚠️ Only ${product.stock} available in stock.`);
         return;
       }
-      updatedCart = cart.map(item =>
-        item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
-      );
+      updated = cart.map(i => i.id === product.id ? { ...i, quantity: i.quantity + 1 } : i);
     } else {
-      updatedCart = [...cart, { ...product, quantity: 1 }];
+      updated = [...cart, { ...product, quantity: 1 }];
     }
-    setCart(updatedCart);
-    localStorage.setItem(cartStorageKey(), JSON.stringify(updatedCart));
+    setCart(updated);
+    localStorage.setItem(cartStorageKey(), JSON.stringify(updated));
     showToast(`✅ Added ${product.productName} to cart!`);
   };
 
   const handleBuyNow = (product) => {
-    if (product.stock <= 0) {
+    if (!product.stock || product.stock <= 0) {
       showToast('❌ Sorry, this product is out of stock!');
       return;
     }
@@ -224,34 +228,22 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
   };
 
   const addToWishlist = (product) => {
-    const exists = wishlist.find(item => item.id === product.id);
-    let updatedWishlist;
+    const exists = wishlist.find(i => i.id === product.id);
+    let updated;
     if (exists) {
-      updatedWishlist = wishlist.filter(item => item.id !== product.id);
+      updated = wishlist.filter(i => i.id !== product.id);
       showToast(`❌ Removed ${product.productName} from wishlist`);
     } else {
-      updatedWishlist = [...wishlist, product];
+      updated = [...wishlist, product];
       showToast(`❤️ Added ${product.productName} to wishlist`);
     }
-    setWishlist(updatedWishlist);
-    localStorage.setItem(wishStorageKey(), JSON.stringify(updatedWishlist));
+    setWishlist(updated);
+    localStorage.setItem(wishStorageKey(), JSON.stringify(updated));
   };
 
-  const showToast = (message) => {
-    const Toast = document.createElement('div');
-    Toast.className = 'toast-message';
-    Toast.innerHTML = message;
-    document.body.appendChild(Toast);
-    setTimeout(() => Toast.remove(), 2000);
-  };
-
-  const playVideo = (videoId) => {
-    if (videoId) {
-      setCurrentVideo(videoId);
-      setShowVideo(true);
-    } else {
-      alert('No video available for this product');
-    }
+  const playVideo = (id) => {
+    if (id) { setCurrentVideo(id); setShowVideo(true); }
+    else alert('No video available for this product');
   };
 
   const handleProceedToCheckout = () => {
@@ -260,21 +252,19 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
     setShowCart(false);
     setShowShipping(true);
   };
-
   const handleProceedToPayment = (details) => {
     setShippingDetails(details);
     setShowShipping(false);
     setShowPayment(true);
   };
-
   const handleBackToCart = () => { setShowShipping(false); setShowCart(true); };
   const handleBackFromBuyNow = () => { setBuyNowProduct(null); setShowShipping(false); };
   const handleBackToShipping = () => { setShowPayment(false); setShowShipping(true); };
 
-  const hasPurchasedProduct = (productId) =>
-    orders.some(order => order.items?.some(item => item.id === productId));
+  const hasPurchasedProduct = (pid) =>
+    orders.some(o => o.items?.some(i => i.id === pid));
 
-  const handleSubmitReview = async () => {
+  const handleSubmitReview = () => {
     if (!reviewProduct) return;
     if (!reviewComment.trim()) { showToast('Please write a comment.'); return; }
     showToast('✅ Thank you for your review!');
@@ -283,6 +273,9 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
     setReviewRating(5);
   };
 
+  // =====================================================
+  // SAVE ORDER
+  // =====================================================
   const handleConfirmPurchase = async (method, amount, paymentSuccess, couponCode, couponDiscount) => {
     const isBuyNow = !!buyNowProduct;
     const sourceItems = isBuyNow ? [{ ...buyNowProduct, quantity: 1 }] : cart;
@@ -292,13 +285,13 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
       customerId: customerId,
       customerName: isGuest ? 'Guest User' : customerName,
       loginId: customerLoginId || 'guest',
-      isGuest: isGuest,
+      isGuest: !!isGuest,
       items: sourceItems.map(item => ({
         id: item.id,
         productName: item.productName,
         quantity: item.quantity,
         price: item.finalPrice,
-        total: item.finalPrice * item.quantity
+        total: item.finalPrice * item.quantity,
       })),
       shippingDetails: shippingDetails,
       paymentMethod: method,
@@ -308,7 +301,7 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
       couponDiscount: couponDiscount || 0,
       orderDate: serverTimestamp(),
       status: 'Pending',
-      deliveryTime: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+      deliveryTime: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
     };
 
     try {
@@ -316,10 +309,9 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
 
       if (couponCode && !isGuest && customerId) {
         const coupons = JSON.parse(localStorage.getItem('coupons') || '[]');
-        const updatedCoupons = coupons.map(c =>
-          c.code === couponCode ? { ...c, usedCount: (c.usedCount || 0) + 1 } : c
-        );
-        localStorage.setItem('coupons', JSON.stringify(updatedCoupons));
+        localStorage.setItem('coupons', JSON.stringify(
+          coupons.map(c => c.code === couponCode ? { ...c, usedCount: (c.usedCount || 0) + 1 } : c)
+        ));
       }
 
       if (!isBuyNow) {
@@ -332,12 +324,14 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
       setPaymentMethod('');
       setShippingDetails(null);
 
-      const itemsList = orderData.items.map(item => `${item.productName} x ${item.quantity}`).join('\n');
-      let message = `🆕 *New Order Placed!*\n\n` +
-                    `*Order ID:* ${orderData.orderId}\n` +
-                    `*Customer:* ${orderData.customerName}\n` +
-                    `*Total:* ₹${orderData.totalAmount.toFixed(2)}\n` +
-                    `*Payment Method:* ${method === 'online' ? 'Online Payment' : 'Cash on Delivery'}`;
+      // WhatsApp notification
+      const itemsList = orderData.items.map(i => `${i.productName} x ${i.quantity}`).join('\n');
+      let message =
+        `🆕 *New Order Placed!*\n\n` +
+        `*Order ID:* ${orderData.orderId}\n` +
+        `*Customer:* ${orderData.customerName}\n` +
+        `*Total:* ₹${orderData.totalAmount.toFixed(2)}\n` +
+        `*Payment Method:* ${method === 'online' ? 'Online Payment' : 'Cash on Delivery'}`;
       if (couponCode) message += `\n*Coupon Applied:* ${couponCode} (Save ₹${couponDiscount.toFixed(2)})`;
       message += `\n*Payment Status:* ${method === 'cod' ? 'Pending (Cash on Delivery)' : 'Paid (Online)'}`;
       message += `\n\n*Items:*\n${itemsList}\n\n` +
@@ -346,26 +340,26 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
       if (shippingDetails.locationLink) message += `📍 *Location:* ${shippingDetails.locationLink}\n\n`;
       message += `Please confirm or cancel this order from the Admin Panel.`;
 
-      const adminNumber = '917092492023';
-      window.open(`https://wa.me/${adminNumber}?text=${encodeURIComponent(message)}`, '_blank');
+      window.open(`https://wa.me/917092492023?text=${encodeURIComponent(message)}`, '_blank');
 
-      alert(`✅ Order placed successfully! Order ID: ${orderData.orderId}\n\nWe will confirm your order shortly.`);
-    } catch (error) {
-      console.error('Error saving order:', error);
+      alert(`✅ Order placed successfully! Order ID: ${orderData.orderId}`);
+    } catch (err) {
+      console.error('Error saving order:', err);
       alert('❌ Failed to place order. Please try again.');
     }
   };
 
-  const formatTime = (hours, minutes, seconds) =>
-    `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-
-  const filteredProducts = products.filter(product => {
-    const matchesSearch = product.productName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          product.productDetails?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory === 'all' || product.category === selectedCategory;
-    return matchesSearch && matchesCategory;
+  const filteredProducts = products.filter(p => {
+    const s = searchTerm.toLowerCase();
+    const matchesSearch = p.productName?.toLowerCase().includes(s) ||
+                          p.productDetails?.toLowerCase().includes(s);
+    const matchesCat = selectedCategory === 'all' || p.category === selectedCategory;
+    return matchesSearch && matchesCat;
   });
 
+  // =====================================================
+  // EARLY RETURNS (Shipping / Payment)
+  // =====================================================
   if (showShipping) {
     const checkoutCart = buyNowProduct ? [{ ...buyNowProduct, quantity: 1 }] : cart;
     return (
@@ -394,6 +388,9 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
     );
   }
 
+  // =====================================================
+  // RENDER
+  // =====================================================
   return (
     <div className="customer-home">
       <header className="customer-header">
@@ -419,8 +416,8 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
                 <span className="btn-icon">🛒</span>
                 <span className="btn-label">Cart</span>
               </button>
-              {cart.reduce((sum, item) => sum + item.quantity, 0) > 0 && (
-                <span className="btn-badge">{cart.reduce((sum, item) => sum + item.quantity, 0)}</span>
+              {cart.reduce((s, i) => s + i.quantity, 0) > 0 && (
+                <span className="btn-badge">{cart.reduce((s, i) => s + i.quantity, 0)}</span>
               )}
             </div>
 
@@ -448,7 +445,7 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
               type="text"
               placeholder="🔍 Search for rice products..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={e => setSearchTerm(e.target.value)}
             />
           </div>
         </div>
@@ -456,10 +453,8 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
 
       <div className="category-filter">
         <button className={`cat-btn ${selectedCategory === 'all' ? 'active' : ''}`} onClick={() => setSelectedCategory('all')}>All</button>
-        {categories.map(cat => (
-          <button key={cat} className={`cat-btn ${selectedCategory === cat ? 'active' : ''}`} onClick={() => setSelectedCategory(cat)}>
-            {cat}
-          </button>
+        {categories.map(c => (
+          <button key={c} className={`cat-btn ${selectedCategory === c ? 'active' : ''}`} onClick={() => setSelectedCategory(c)}>{c}</button>
         ))}
       </div>
 
@@ -477,9 +472,9 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
                   {product.stock === 0 && <div className="out-of-stock-overlay">Out of Stock</div>}
                   <button
                     onClick={() => addToWishlist(product)}
-                    className={`wishlist-btn ${wishlist.find(item => item.id === product.id) ? 'active' : ''}`}
+                    className={`wishlist-btn ${wishlist.find(i => i.id === product.id) ? 'active' : ''}`}
                   >
-                    {wishlist.find(item => item.id === product.id) ? '❤️' : '🤍'}
+                    {wishlist.find(i => i.id === product.id) ? '❤️' : '🤍'}
                   </button>
                 </div>
                 <div className="product-details">
@@ -501,7 +496,6 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
                     </span>
                     <span className="rating-tag">⭐ {product.averageRating ? product.averageRating.toFixed(1) : 'No ratings'}</span>
                   </div>
-
                   <div className="product-actions">
                     <div className="product-actions-primary">
                       <button onClick={() => addToCart(product)} className="add-to-cart" disabled={product.stock === 0}>
@@ -538,19 +532,17 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
               <a href="#" target="_blank" rel="noopener noreferrer" className="social-link youtube"><span>▶️ YouTube</span></a>
             </div>
           </div>
-
           <div className="footer-section">
             <h3>🏷️ Categories</h3>
             <ul className="footer-links">
               <li><button className="footer-link-btn" onClick={() => { setSelectedCategory('all'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>All Products</button></li>
-              {categories.map(cat => (
-                <li key={cat}>
-                  <button className="footer-link-btn" onClick={() => { setSelectedCategory(cat); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>{cat}</button>
+              {categories.map(c => (
+                <li key={c}>
+                  <button className="footer-link-btn" onClick={() => { setSelectedCategory(c); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>{c}</button>
                 </li>
               ))}
             </ul>
           </div>
-
           <div className="footer-section">
             <h3>⚙️ Services</h3>
             <ul className="footer-links">
@@ -564,68 +556,48 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
         <div className="footer-bottom"><p>© {new Date().getFullYear()} SOWDAMMAL RICE MILL. All rights reserved.</p></div>
       </footer>
 
-      {/* ---- Footer modals ---- */}
+      {/* ---- Footer Modals ---- */}
       {showRefundModal && (
         <div className="modal" onClick={() => setShowRefundModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
             <span className="close" onClick={() => setShowRefundModal(false)}>&times;</span>
             <h2>🔄 Refunds & Cancellations</h2>
             <div className="modal-body">
               <h3>7‑Day Replacement Guarantee</h3>
-              <p>At <strong>SOWDAMMAL RICE MILL</strong>, we take pride in the quality of our rice.</p>
-              <ul>
-                <li>✅ <strong>Hassle‑free returns</strong> – contact us within 7 days of delivery.</li>
-                <li>✅ <strong>Full replacement</strong> – no extra cost.</li>
-                <li>✅ <strong>Quality assured</strong> – every bag checked.</li>
-              </ul>
-              <p>Call or WhatsApp <a href="tel:+917092492023">+91 7092492023</a> with your order ID.</p>
+              <p>Contact us within 7 days of delivery for a full replacement — no extra cost.</p>
+              <p>Call/WhatsApp <a href="tel:+917092492023">+91 7092492023</a> with your Order ID.</p>
             </div>
           </div>
         </div>
       )}
-
       {showPrivacyModal && (
         <div className="modal" onClick={() => setShowPrivacyModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
             <span className="close" onClick={() => setShowPrivacyModal(false)}>&times;</span>
             <h2>🔒 Privacy Policy</h2>
             <div className="modal-body">
-              <p>We respect your privacy and protect your personal information.</p>
-              <h4>What we collect</h4>
-              <ul><li>Name, email, phone, address for order processing.</li><li>Order history and preferences.</li></ul>
-              <h4>How we use your data</h4>
-              <ul><li>To process and deliver your orders.</li><li>To improve our service.</li></ul>
-              <h4>Data security</h4>
-              <ul><li>Data is stored securely, never sold.</li></ul>
+              <p>We respect your privacy. Your data is stored securely and never shared with third parties.</p>
             </div>
           </div>
         </div>
       )}
-
       {showTermsModal && (
         <div className="modal" onClick={() => setShowTermsModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
             <span className="close" onClick={() => setShowTermsModal(false)}>&times;</span>
             <h2>📜 Terms & Conditions</h2>
             <div className="modal-body">
-              <h4>Order & Delivery</h4>
-              <ul><li>Orders processed within 24 hours of confirmation.</li><li>Delivery in 2–3 business days after confirmation.</li></ul>
-              <h4>Payment</h4>
-              <ul><li>COD and Online (UPI / Bank Transfer).</li></ul>
-              <h4>Returns & Cancellations</h4>
-              <ul><li>Cancellations within 12 hours of ordering.</li><li>Returns within 7 days of delivery.</li></ul>
+              <p>Cancellations within 12 hours of ordering. Returns within 7 days of delivery.</p>
             </div>
           </div>
         </div>
       )}
-
       {showContactModal && (
         <div className="modal" onClick={() => setShowContactModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
             <span className="close" onClick={() => setShowContactModal(false)}>&times;</span>
             <h2>📧 Contact Us</h2>
             <div className="modal-body">
-              <p><strong>SOWDAMMAL RICE MILL</strong><br />12/2, Palani Road,<br />KT Hospital Opposite,<br />Dindigul – 624001.</p>
               <p>📞 <a href="tel:+917092492023">+91 7092492023</a></p>
               <p>✉️ <a href="mailto:SOWDAMMALRICEMILL2025@GMAIL.COM">SOWDAMMALRICEMILL2025@GMAIL.COM</a></p>
             </div>
@@ -633,67 +605,95 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
         </div>
       )}
 
-      {/* ---- Orders Modal ---- */}
+      {/* ---- ORDERS MODAL (the important one) ---- */}
       {showOrders && (
         <div className="modal" onClick={() => setShowOrders(false)}>
-          <div className="orders-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="orders-modal" onClick={e => e.stopPropagation()}>
             <span className="close" onClick={() => setShowOrders(false)}>&times;</span>
             <h2>{isGuest ? '📦 Guest Orders' : '📦 My Orders'}</h2>
-            {orders.length === 0 ? (
+
+            {ordersLoading && <p style={{ textAlign: 'center', color: '#666' }}>Loading orders...</p>}
+
+            {ordersError && (
+              <div style={{
+                background: '#fde8e8', color: '#c0392b', padding: '12px 16px',
+                borderRadius: 8, margin: '10px 0', fontSize: 14,
+                borderLeft: '4px solid #c0392b'
+              }}>⚠️ {ordersError}</div>
+            )}
+
+            {!ordersLoading && !ordersError && orders.length === 0 && (
               <div className="empty-orders">
                 <p>{isGuest ? 'No guest orders yet' : 'No orders yet'}</p>
                 <p className="empty-sub">Start shopping to see your orders here!</p>
                 {isGuest && <p className="guest-note">💡 Login to save your orders permanently</p>}
               </div>
-            ) : (
+            )}
+
+            {orders.length > 0 && (
               <div className="orders-list">
                 {orders.map(order => {
                   const timer = order.status === 'Confirmed'
                     ? (orderTimers[order.id] || calculateRemainingTime(order))
                     : null;
+                  const items = order.items || [];
+                  const total = Number(order.totalAmount || 0);
                   return (
                     <div key={order.id} className="order-card">
                       <div className="order-header">
-                        <span className="order-id">Order #{order.orderId}</span>
-                        <span className={`order-status ${order.status.toLowerCase()}`}>
+                        <span className="order-id">Order #{order.orderId || order.id}</span>
+                        <span className={`order-status ${(order.status || 'pending').toLowerCase()}`}>
                           {order.status === 'Delivered' ? '✅ Delivered' :
                            order.status === 'Cancelled' ? '❌ Cancelled' :
-                           order.status === 'Pending' ? '⏳ Pending' : '✅ Confirmed'}
+                           order.status === 'Pending'   ? '⏳ Pending' :
+                           '✅ Confirmed'}
                         </span>
                       </div>
+
                       <div className="order-date">
-                        {order.orderDate ? new Date(order.orderDate.seconds * 1000).toLocaleString() : 'Just now'}
+                        {order.orderDate
+                          ? new Date(order.orderDate.seconds * 1000).toLocaleString()
+                          : 'Just now'}
                       </div>
+
                       <div className="order-customer">
                         👤 Customer: {order.customerName || order.shippingDetails?.fullName || 'N/A'}
                         {order.isGuest && <span className="guest-tag"> (Guest)</span>}
                       </div>
+
                       <div className="order-items">
-                        {order.items.map((item, index) => (
-                          <div key={index} className="order-item">
+                        {items.map((item, i) => (
+                          <div key={i} className="order-item">
                             <span>{item.productName} x {item.quantity}</span>
-                            <span>₹{item.total.toFixed(2)}</span>
+                            <span>₹{Number(item.total || 0).toFixed(2)}</span>
                           </div>
                         ))}
                       </div>
+
                       <div className="order-total">
-                        <strong>Total: ₹{order.totalAmount.toFixed(2)}</strong>
+                        <strong>Total: ₹{total.toFixed(2)}</strong>
                         {order.couponCode && (
-                          <span className="coupon-applied"> 🎫 {order.couponCode} (Save ₹{order.couponDiscount?.toFixed(2)})</span>
+                          <span className="coupon-applied">
+                            {' '}🎫 {order.couponCode} (Save ₹{Number(order.couponDiscount || 0).toFixed(2)})
+                          </span>
                         )}
                       </div>
+
                       <div className="order-payment">
                         💳 {order.paymentMethod === 'online' ? 'Online Payment' : 'Cash on Delivery'}
                         {order.paymentStatus && <span> ({order.paymentStatus})</span>}
                       </div>
+
                       {order.status === 'Delivered' && (
                         <div className="delivery-status delivered">
                           ✅ Delivered on: {order.deliveredDate ? new Date(order.deliveredDate).toLocaleString() : 'N/A'}
                         </div>
                       )}
+
                       {order.status === 'Cancelled' && (
                         <div className="delivery-status cancelled">❌ Order Cancelled by Admin</div>
                       )}
+
                       {order.status === 'Confirmed' && timer && (
                         <div className="order-delivery">
                           <div className="delivery-timer">
@@ -705,6 +705,14 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
                           </div>
                         </div>
                       )}
+
+                      {order.status === 'Pending' && (
+                        <div className="delivery-status" style={{
+                          background: '#fff3cd', color: '#856404',
+                          padding: '8px 12px', borderRadius: 8, marginTop: 10,
+                          textAlign: 'center', fontWeight: 600, fontSize: 13
+                        }}>⏳ Waiting for admin confirmation</div>
+                      )}
                     </div>
                   );
                 })}
@@ -714,10 +722,10 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
         </div>
       )}
 
-      {/* ---- Product Modal ---- */}
+      {/* ---- PRODUCT MODAL ---- */}
       {selectedProduct && (
         <div className="modal" onClick={() => setSelectedProduct(null)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
             <span className="close" onClick={() => setSelectedProduct(null)}>&times;</span>
             <img src={selectedProduct.image} alt={selectedProduct.productName} />
             <h2>{selectedProduct.productName}</h2>
@@ -742,21 +750,20 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
             </div>
             <div className="modal-actions-secondary">
               <button onClick={() => addToWishlist(selectedProduct)} className="wishlist-modal-btn">
-                {wishlist.find(item => item.id === selectedProduct.id) ? '❤️ Remove from Wishlist' : '🤍 Add to Wishlist'}
+                {wishlist.find(i => i.id === selectedProduct.id) ? '❤️ Remove from Wishlist' : '🤍 Add to Wishlist'}
               </button>
             </div>
-
             <div className="review-section">
               <h4>Customer Reviews</h4>
               {selectedProduct.reviews && selectedProduct.reviews.length > 0 ? (
-                selectedProduct.reviews.map(review => (
-                  <div key={review.id} className="review-item">
+                selectedProduct.reviews.map(r => (
+                  <div key={r.id} className="review-item">
                     <div className="review-header">
-                      <strong>{review.customerName}</strong>
-                      <span className="review-rating">⭐ {review.rating}</span>
-                      <span className="review-date">{new Date(review.date).toLocaleDateString()}</span>
+                      <strong>{r.customerName}</strong>
+                      <span className="review-rating">⭐ {r.rating}</span>
+                      <span className="review-date">{new Date(r.date).toLocaleDateString()}</span>
                     </div>
-                    <p className="review-comment">{review.comment}</p>
+                    <p className="review-comment">{r.comment}</p>
                   </div>
                 ))
               ) : (<p>No reviews yet. Be the first to review!</p>)}
@@ -765,11 +772,11 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
                   <h5>Write a Review</h5>
                   <div className="rating-select">
                     <label>Rating:</label>
-                    <select value={reviewRating} onChange={(e) => setReviewRating(parseInt(e.target.value))}>
-                      {[1,2,3,4,5].map(r => <option key={r} value={r}>{r} Star{r>1?'s':''}</option>)}
+                    <select value={reviewRating} onChange={e => setReviewRating(parseInt(e.target.value))}>
+                      {[1,2,3,4,5].map(r => <option key={r} value={r}>{r} Star{r > 1 ? 's' : ''}</option>)}
                     </select>
                   </div>
-                  <textarea value={reviewComment} onChange={(e) => setReviewComment(e.target.value)} placeholder="Share your experience..." rows="3"></textarea>
+                  <textarea value={reviewComment} onChange={e => setReviewComment(e.target.value)} placeholder="Share your experience..." rows="3" />
                   <button onClick={handleSubmitReview} className="submit-review-btn">Submit Review</button>
                 </div>
               )}
@@ -779,10 +786,10 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
         </div>
       )}
 
-      {/* ---- Video Modal ---- */}
+      {/* ---- VIDEO MODAL ---- */}
       {showVideo && (
         <div className="modal" onClick={() => setShowVideo(false)}>
-          <div className="video-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="video-modal" onClick={e => e.stopPropagation()}>
             <span className="close" onClick={() => setShowVideo(false)}>&times;</span>
             <iframe
               width="100%" height="400"
@@ -795,10 +802,10 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
         </div>
       )}
 
-      {/* ---- Wishlist Modal ---- */}
+      {/* ---- WISHLIST MODAL ---- */}
       {showWishlist && (
         <div className="modal" onClick={() => setShowWishlist(false)}>
-          <div className="wishlist-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="wishlist-modal" onClick={e => e.stopPropagation()}>
             <span className="close" onClick={() => setShowWishlist(false)}>&times;</span>
             <h2>❤️ Your Wishlist</h2>
             {wishlist.length === 0 ? (
@@ -809,36 +816,28 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
             ) : (
               <>
                 <div className="wishlist-grid">
-                  {wishlist.map(product => (
-                    <div key={product.id} className="wishlist-item">
-                      <img src={product.image} alt={product.productName} />
+                  {wishlist.map(p => (
+                    <div key={p.id} className="wishlist-item">
+                      <img src={p.image} alt={p.productName} />
                       <div className="wishlist-item-details">
-                        <h4>{product.productName}</h4>
-                        <p className="wishlist-description">{product.productDetails}</p>
-                        <div className="wishlist-price">
-                          {product.discount > 0 ? (
-                            <>
-                              <span className="original-price">₹{product.price}</span>
-                              <span className="discounted-price">₹{product.finalPrice?.toFixed(2)}</span>
-                            </>
-                          ) : (<span className="price">₹{product.price}</span>)}
-                        </div>
+                        <h4>{p.productName}</h4>
+                        <p className="wishlist-description">{p.productDetails}</p>
                         <div className="wishlist-actions">
                           <button
                             onClick={() => {
-                              addToCart(product);
-                              const updated = wishlist.filter(item => item.id !== product.id);
-                              setWishlist(updated);
-                              localStorage.setItem(wishStorageKey(), JSON.stringify(updated));
+                              addToCart(p);
+                              const u = wishlist.filter(x => x.id !== p.id);
+                              setWishlist(u);
+                              localStorage.setItem(wishStorageKey(), JSON.stringify(u));
                             }}
                             className="add-to-cart-wishlist"
                           >🛒 Add to Cart</button>
                           <button
                             onClick={() => {
-                              const updated = wishlist.filter(item => item.id !== product.id);
-                              setWishlist(updated);
-                              localStorage.setItem(wishStorageKey(), JSON.stringify(updated));
-                              showToast(`❌ Removed ${product.productName} from wishlist`);
+                              const u = wishlist.filter(x => x.id !== p.id);
+                              setWishlist(u);
+                              localStorage.setItem(wishStorageKey(), JSON.stringify(u));
+                              showToast(`❌ Removed ${p.productName} from wishlist`);
                             }}
                             className="remove-wishlist-item"
                           >🗑️ Remove</button>
@@ -850,31 +849,29 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
                 <div className="wishlist-footer">
                   <button
                     onClick={() => {
-                      const updatedCart = [...cart];
-                      wishlist.forEach(product => {
-                        const existingItem = updatedCart.find(item => item.id === product.id);
-                        if (existingItem) existingItem.quantity += 1;
-                        else updatedCart.push({ ...product, quantity: 1 });
+                      const updated = [...cart];
+                      wishlist.forEach(p => {
+                        const ex = updated.find(x => x.id === p.id);
+                        if (ex) ex.quantity += 1;
+                        else updated.push({ ...p, quantity: 1 });
                       });
-                      setCart(updatedCart);
-                      localStorage.setItem(cartStorageKey(), JSON.stringify(updatedCart));
+                      setCart(updated);
+                      localStorage.setItem(cartStorageKey(), JSON.stringify(updated));
                       setWishlist([]);
                       localStorage.setItem(wishStorageKey(), JSON.stringify([]));
                       alert(`✅ Added all ${wishlist.length} items to cart!`);
                       setShowWishlist(false);
                     }}
-                    className="add-all-to-cart"
-                    disabled={wishlist.length === 0}
+                    className="add-all-to-cart" disabled={wishlist.length === 0}
                   >🛒 Add All to Cart</button>
                   <button
                     onClick={() => {
-                      if (window.confirm('Are you sure you want to clear your wishlist?')) {
+                      if (window.confirm('Clear wishlist?')) {
                         setWishlist([]);
                         localStorage.setItem(wishStorageKey(), JSON.stringify([]));
                       }
                     }}
-                    className="clear-wishlist"
-                    disabled={wishlist.length === 0}
+                    className="clear-wishlist" disabled={wishlist.length === 0}
                   >🗑️ Clear Wishlist</button>
                 </div>
               </>
@@ -883,10 +880,10 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
         </div>
       )}
 
-      {/* ---- Cart Modal ---- */}
+      {/* ---- CART MODAL ---- */}
       {showCart && (
         <div className="modal" onClick={() => setShowCart(false)}>
-          <div className="cart-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="cart-modal" onClick={e => e.stopPropagation()}>
             <span className="close" onClick={() => setShowCart(false)}>&times;</span>
             <h2>Your Cart 🛒</h2>
             {isGuest && (
@@ -909,16 +906,16 @@ function CustomerHome({ onLogout, customerId, customerLoginId }) {
                     </div>
                     <button
                       onClick={() => {
-                        const updated = cart.filter(i => i.id !== item.id);
-                        setCart(updated);
-                        localStorage.setItem(cartStorageKey(), JSON.stringify(updated));
+                        const u = cart.filter(i => i.id !== item.id);
+                        setCart(u);
+                        localStorage.setItem(cartStorageKey(), JSON.stringify(u));
                       }}
                       className="remove-item"
                     >🗑️</button>
                   </div>
                 ))}
                 <div className="cart-total">
-                  <h3>Grand Total: ₹{cart.reduce((sum, item) => sum + (item.finalPrice * item.quantity), 0).toFixed(2)}</h3>
+                  <h3>Grand Total: ₹{cart.reduce((s, i) => s + i.finalPrice * i.quantity, 0).toFixed(2)}</h3>
                   <button className="checkout-btn" onClick={handleProceedToCheckout}>Proceed to Checkout</button>
                 </div>
               </>
