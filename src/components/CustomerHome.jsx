@@ -89,15 +89,19 @@ useEffect(() => {
 
   // ---- REAL-TIME PRODUCTS from Firestore ----
   const productsQuery = query(collection(db, 'products'), orderBy('createdAt', 'desc'));
-  const unsubscribeProducts = onSnapshot(productsQuery, (snapshot) => {
-    const productsData = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
+const unsubscribeProducts = onSnapshot(
+  collection(db, 'products'),
+  (snapshot) => {
+    const productsData = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    productsData.sort((a, b) => {
+      const aT = a.createdAt?.seconds || 0;
+      const bT = b.createdAt?.seconds || 0;
+      return bT - aT;
+    });
     setProducts(productsData);
-  }, (error) => {
-    console.error('Error loading products:', error);
-  });
+  },
+  (error) => console.error('Products load error:', error)
+);
 
   // ---- REAL-TIME ORDERS for this customer from Firestore ----
   const ordersQuery = query(

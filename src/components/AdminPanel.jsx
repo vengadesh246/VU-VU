@@ -4,8 +4,6 @@ import { db } from '../firebase';
 import {
   collection,
   onSnapshot,
-  query,
-  orderBy,
   doc,
   updateDoc,
   addDoc,
@@ -38,11 +36,11 @@ function AdminPanel({ onLogout }) {
   });
   const [editingId, setEditingId] = useState(null);
   const [message, setMessage] = useState('');
+  const [errorBanner, setErrorBanner] = useState('');
   const [orderFilter, setOrderFilter] = useState('all');
   const [showDeliveredDropdown, setShowDeliveredDropdown] = useState(false);
   const [showCancelledDropdown, setShowCancelledDropdown] = useState(false);
 
-  // Coupon form state
   const [couponForm, setCouponForm] = useState({
     id: null,
     code: '',
@@ -55,46 +53,59 @@ function AdminPanel({ onLogout }) {
   });
   const [editingCouponId, setEditingCouponId] = useState(null);
 
-  // Review modal
   const [selectedProductReviews, setSelectedProductReviews] = useState(null);
   const [showReviewModal, setShowReviewModal] = useState(false);
 
-  // ---- Load data ----
+  // ---- Real-time data from Firestore ----
   useEffect(() => {
-  // ---- REAL-TIME PRODUCTS from Firestore ----
-  const productsQuery = query(collection(db, 'products'), orderBy('createdAt', 'desc'));
-  const unsubscribeProducts = onSnapshot(productsQuery, (snapshot) => {
-    const productsData = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
-    setProducts(productsData);
-  }, (error) => {
-    console.error('Error loading products:', error);
-  });
+    // Products: no orderBy → returns everything. Sort client-side.
+    const unsubscribeProducts = onSnapshot(
+      collection(db, 'products'),
+      (snapshot) => {
+        console.log('🔥 Products snapshot size:', snapshot.size);
+        const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        // Sort newest first, but tolerate missing createdAt
+        data.sort((a, b) => {
+          const aT = a.createdAt?.seconds || a.createdAt?.toMillis?.() || 0;
+          const bT = b.createdAt?.seconds || b.createdAt?.toMillis?.() || 0;
+          return bT - aT;
+        });
+        setProducts(data);
+        setErrorBanner('');
+      },
+      (error) => {
+        console.error('❌ Products load error:', error);
+        setErrorBanner('Products load failed: ' + error.code + ' — ' + error.message);
+      }
+    );
 
-  // ---- REAL-TIME ALL ORDERS from Firestore ----
-  const ordersQuery = query(collection(db, 'orders'), orderBy('orderDate', 'desc'));
-  const unsubscribeOrders = onSnapshot(ordersQuery, (snapshot) => {
-    const ordersData = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
-    setOrders(ordersData);
-  }, (error) => {
-    console.error('Error loading orders:', error);
-  });
+    // Orders: no orderBy, sort client-side
+    const unsubscribeOrders = onSnapshot(
+      collection(db, 'orders'),
+      (snapshot) => {
+        const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        data.sort((a, b) => {
+          const aT = a.orderDate?.seconds || a.orderDate?.toMillis?.() || 0;
+          const bT = b.orderDate?.seconds || b.orderDate?.toMillis?.() || 0;
+          return bT - aT;
+        });
+        setOrders(data);
+      },
+      (error) => {
+        console.error('❌ Orders load error:', error);
+      }
+    );
 
-  loadCategories();
-  loadCoupons();
+    loadCategories();
+    loadCoupons();
 
-  return () => {
-    unsubscribeProducts();
-    unsubscribeOrders();
-  };
-}, []);
+    return () => {
+      unsubscribeProducts();
+      unsubscribeOrders();
+    };
+  }, []);
 
-  // ---- Categories (unchanged, localStorage) ----
+  // ---- Categories ----
   const loadCategories = () => {
     const saved = localStorage.getItem('categories');
     if (saved) {
@@ -140,13 +151,12 @@ function AdminPanel({ onLogout }) {
     }
   };
 
-  // ---- Coupons (unchanged, localStorage) ----
+  // ---- Coupons ----
   const loadCoupons = () => {
     const saved = localStorage.getItem('coupons');
     if (saved) {
       try {
-        const parsed = JSON.parse(saved);
-        setCoupons(parsed);
+        setCoupons(JSON.parse(saved));
         return;
       } catch (e) {}
     }
@@ -216,14 +226,13 @@ function AdminPanel({ onLogout }) {
 
   const handleDeleteCoupon = (id) => {
     if (window.confirm('Delete this coupon?')) {
-      const updated = coupons.filter(c => c.id !== id);
-      saveCoupons(updated);
+      saveCoupons(coupons.filter(c => c.id !== id));
       setMessage('✅ Coupon deleted');
       setTimeout(() => setMessage(''), 3000);
     }
   };
 
-  // ---- Products (now saving to Firestore) ----
+  // ---- Products ----
   const calculateFinalPrice = (price, discount) => {
     if (!discount || discount === 0) return price;
     return price - (price * discount / 100);
@@ -239,11 +248,7 @@ function AdminPanel({ onLogout }) {
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setFormData(prev => ({
-          ...prev,
-          image: reader.result,
-          imagePreview: reader.result
-        }));
+        setFormData(prev => ({ ...prev, image: reader.result, imagePreview: reader.result }));
       };
       reader.readAsDataURL(file);
     }
@@ -254,64 +259,63 @@ function AdminPanel({ onLogout }) {
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setFormData(prev => ({
-          ...prev,
-          discountImage: reader.result,
-          discountImagePreview: reader.result
-        }));
+        setFormData(prev => ({ ...prev, discountImage: reader.result, discountImagePreview: reader.result }));
       };
       reader.readAsDataURL(file);
     }
   };
 
   const extractYouTubeId = (url) => {
+    if (!url) return '';
     const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
     const match = url.match(regExp);
     return (match && match[2].length === 11) ? match[2] : url;
   };
 
   const handleSubmit = async (e) => {
-  e.preventDefault();
-  if (!formData.productName || !formData.productDetails || !formData.price || !formData.category || !formData.stock) {
-    setMessage('❌ Please fill all required fields');
-    setTimeout(() => setMessage(''), 3000);
-    return;
-  }
-  const finalPrice = calculateFinalPrice(parseFloat(formData.price), parseFloat(formData.discount || 0));
-  const productData = {
-    productName: formData.productName,
-    productDetails: formData.productDetails,
-    price: parseFloat(formData.price),
-    discount: parseFloat(formData.discount || 0),
-    finalPrice: finalPrice,
-    category: formData.category,
-    stock: parseInt(formData.stock, 10),
-    youtubeVideoId: extractYouTubeId(formData.youtubeVideoId),
-    instagramUrl: formData.instagramUrl || '',
-    image: formData.image || 'https://images.unsplash.com/photo-1586201375761-83865001e8ac?w=400',
-    discountImage: formData.discountImage || '',
-    discountText: formData.discountText || '',
-    createdAt: editingId ? undefined : serverTimestamp(),
-    reviews: editingId ? (products.find(p => p.id === editingId)?.reviews || []) : [],
-    averageRating: editingId ? (products.find(p => p.id === editingId)?.averageRating || 0) : 0
-  };
-
-  try {
-    if (editingId) {
-      await updateDoc(doc(db, 'products', editingId), productData);
-      setMessage('✅ Product updated successfully!');
-    } else {
-      await addDoc(collection(db, 'products'), productData);
-      setMessage('✅ Product added successfully!');
+    e.preventDefault();
+    if (!formData.productName || !formData.productDetails || !formData.price || !formData.category || !formData.stock) {
+      setMessage('❌ Please fill all required fields');
+      setTimeout(() => setMessage(''), 3000);
+      return;
     }
-    resetForm();
-    setTimeout(() => setMessage(''), 3000);
-  } catch (error) {
-    console.error('Error saving product:', error);
-    setMessage('❌ Failed to save product.');
-    setTimeout(() => setMessage(''), 3000);
-  }
-};
+    const finalPrice = calculateFinalPrice(parseFloat(formData.price), parseFloat(formData.discount || 0));
+    const productData = {
+      productName: formData.productName,
+      productDetails: formData.productDetails,
+      price: parseFloat(formData.price),
+      discount: parseFloat(formData.discount || 0),
+      finalPrice: finalPrice,
+      category: formData.category,
+      stock: parseInt(formData.stock, 10),
+      youtubeVideoId: extractYouTubeId(formData.youtubeVideoId),
+      instagramUrl: formData.instagramUrl || '',
+      image: formData.image || 'https://images.unsplash.com/photo-1586201375761-83865001e8ac?w=400',
+      discountImage: formData.discountImage || '',
+      discountText: formData.discountText || '',
+      reviews: editingId ? (products.find(p => p.id === editingId)?.reviews || []) : [],
+      averageRating: editingId ? (products.find(p => p.id === editingId)?.averageRating || 0) : 0
+    };
+
+    try {
+      if (editingId) {
+        await updateDoc(doc(db, 'products', editingId), productData);
+        setMessage('✅ Product updated successfully!');
+      } else {
+        await addDoc(collection(db, 'products'), {
+          ...productData,
+          createdAt: serverTimestamp()
+        });
+        setMessage('✅ Product added successfully!');
+      }
+      resetForm();
+      setTimeout(() => setMessage(''), 3000);
+    } catch (error) {
+      console.error('Error saving product:', error);
+      setMessage('❌ Failed to save product: ' + error.message);
+      setTimeout(() => setMessage(''), 5000);
+    }
+  };
 
   const resetForm = () => {
     setFormData({
@@ -353,20 +357,78 @@ function AdminPanel({ onLogout }) {
   };
 
   const handleDelete = async (id) => {
-  if (window.confirm('Are you sure you want to delete this product?')) {
-    try {
-      await deleteDoc(doc(db, 'products', id));
-      setMessage('✅ Product deleted successfully!');
-      setTimeout(() => setMessage(''), 3000);
-    } catch (error) {
-      console.error('Error deleting product:', error);
-      setMessage('❌ Failed to delete product.');
-      setTimeout(() => setMessage(''), 3000);
+    if (window.confirm('Are you sure you want to delete this product?')) {
+      try {
+        await deleteDoc(doc(db, 'products', id));
+        setMessage('✅ Product deleted successfully!');
+        setTimeout(() => setMessage(''), 3000);
+      } catch (error) {
+        console.error('Error deleting product:', error);
+        setMessage('❌ Failed to delete product.');
+        setTimeout(() => setMessage(''), 3000);
+      }
     }
-  }
-};
+  };
 
-  // Review modal handlers (unchanged, can be updated later)
+  // ============================================
+  // TEMPORARY: Migration from localStorage → Firestore
+  // Delete after running once.
+  // ============================================
+  const migrateLocalProductsToFirestore = async () => {
+    const saved = localStorage.getItem('riceProducts');
+    if (!saved) {
+      alert('No products found in localStorage under key "riceProducts". Open the browser where you originally created products.');
+      return;
+    }
+    let localProducts;
+    try {
+      localProducts = JSON.parse(saved);
+    } catch (e) {
+      alert('Failed to parse localStorage products.');
+      return;
+    }
+    if (!Array.isArray(localProducts) || localProducts.length === 0) {
+      alert('localStorage products list is empty.');
+      return;
+    }
+    if (!window.confirm(`Found ${localProducts.length} products. Upload them to Firestore?`)) return;
+
+    let successCount = 0;
+    let failCount = 0;
+    const failures = [];
+    for (const p of localProducts) {
+      try {
+        const { id, ...rest } = p;
+        await addDoc(collection(db, 'products'), {
+          productName: rest.productName || '',
+          productDetails: rest.productDetails || '',
+          price: Number(rest.price) || 0,
+          discount: Number(rest.discount) || 0,
+          finalPrice: Number(rest.finalPrice) || Number(rest.price) || 0,
+          category: rest.category || 'General',
+          stock: Number(rest.stock) || 0,
+          youtubeVideoId: rest.youtubeVideoId || '',
+          instagramUrl: rest.instagramUrl || '',
+          image: rest.image || '',
+          discountImage: rest.discountImage || '',
+          discountText: rest.discountText || '',
+          reviews: rest.reviews || [],
+          averageRating: rest.averageRating || 0,
+          createdAt: serverTimestamp(),
+          migratedAt: new Date().toISOString()
+        });
+        successCount++;
+      } catch (err) {
+        console.error('Migration failed for:', p, err);
+        failCount++;
+        failures.push(err.code || err.message);
+      }
+    }
+    const failMsg = failures.length ? `\nErrors: ${[...new Set(failures)].join(', ')}` : '';
+    alert(`✅ Migration done.\nUploaded: ${successCount}\nFailed: ${failCount}${failMsg}`);
+  };
+
+  // ---- Reviews ----
   const openReviewModal = (productId) => {
     const product = products.find(p => p.id === productId);
     if (product) {
@@ -375,15 +437,30 @@ function AdminPanel({ onLogout }) {
     }
   };
 
-  const handleDeleteReview = (productId, reviewId) => {
-    if (window.confirm('Delete this review?')) {
-      // In a full implementation, you would update the product document in Firestore
-      setMessage('✅ Review deleted (simulated)');
+  const handleDeleteReview = async (productId, reviewId) => {
+    if (!window.confirm('Delete this review?')) return;
+    try {
+      const product = products.find(p => p.id === productId);
+      if (!product) return;
+      const updatedReviews = (product.reviews || []).filter(r => r.id !== reviewId);
+      const avg = updatedReviews.length > 0
+        ? updatedReviews.reduce((sum, r) => sum + r.rating, 0) / updatedReviews.length
+        : 0;
+      await updateDoc(doc(db, 'products', productId), {
+        reviews: updatedReviews,
+        averageRating: avg
+      });
+      setMessage('✅ Review deleted');
+      setTimeout(() => setMessage(''), 3000);
+      setSelectedProductReviews({ ...product, reviews: updatedReviews, averageRating: avg });
+    } catch (err) {
+      console.error('Error deleting review:', err);
+      setMessage('❌ Failed to delete review.');
       setTimeout(() => setMessage(''), 3000);
     }
   };
 
-  // ---- Order management: Update status in Firestore ----
+  // ---- Orders ----
   const updateOrderStatus = async (orderId, status) => {
     try {
       const updateData = {
@@ -401,7 +478,7 @@ function AdminPanel({ onLogout }) {
       setTimeout(() => setMessage(''), 3000);
     } catch (error) {
       console.error('Error updating order:', error);
-      setMessage('❌ Failed to update order status.');
+      setMessage('❌ Failed to update order status: ' + error.message);
       setTimeout(() => setMessage(''), 3000);
     }
   };
@@ -423,12 +500,18 @@ function AdminPanel({ onLogout }) {
     return orders.filter(o => o.status === orderFilter);
   };
 
+  const formatDate = (ts) => {
+    if (!ts) return 'N/A';
+    if (ts.seconds) return new Date(ts.seconds * 1000).toLocaleString();
+    if (typeof ts === 'string') return new Date(ts).toLocaleString();
+    return 'N/A';
+  };
+
   const stats = getOrderStats();
   const filteredOrders = getFilteredOrders();
   const deliveredOrders = orders.filter(o => o.status === 'Delivered');
   const cancelledOrders = orders.filter(o => o.status === 'Cancelled');
 
-  // ---- Render ----
   return (
     <div className="admin-panel">
       <div className="admin-header">
@@ -437,6 +520,20 @@ function AdminPanel({ onLogout }) {
       </div>
 
       {message && <div className="message-popup">{message}</div>}
+
+      {errorBanner && (
+        <div style={{
+          background: '#fde8e8',
+          color: '#c0392b',
+          padding: '12px 20px',
+          margin: '10px 20px',
+          borderRadius: '8px',
+          borderLeft: '4px solid #c0392b',
+          fontSize: '14px'
+        }}>
+          ⚠️ {errorBanner}
+        </div>
+      )}
 
       <div className="admin-tabs">
         <button className={`tab-btn ${activeTab === 'products' ? 'active' : ''}`} onClick={() => setActiveTab('products')}>
@@ -546,48 +643,74 @@ function AdminPanel({ onLogout }) {
 
             <div className="products-list-container">
               <h2>📦 Manage Products ({products.length})</h2>
-              <div className="admin-products-grid">
-                {products.map(product => (
-                  <div key={product.id} className="admin-product-card">
-                    <img src={product.image} alt={product.productName} />
-                    <div className="product-info">
-                      <h3>{product.productName}</h3>
-                      <p className="product-desc">{product.productDetails?.substring(0, 60)}...</p>
-                      <div className="price-info">
-                        {product.discount > 0 ? (
-                          <>
-                            <span className="original-price">₹{product.price}</span>
-                            <span className="discount">-{product.discount}%</span>
-                            <span className="final-price">₹{product.finalPrice}</span>
-                          </>
-                        ) : (
-                          <span className="final-price">₹{product.price}</span>
-                        )}
+
+              {/* TEMPORARY MIGRATION BUTTON — delete after use */}
+              <button
+                onClick={migrateLocalProductsToFirestore}
+                style={{
+                  background: '#ff9800',
+                  color: 'white',
+                  border: 'none',
+                  padding: '10px 18px',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  marginBottom: '20px',
+                  fontWeight: 700,
+                  fontSize: '14px'
+                }}
+              >
+                ⬆️ Migrate Products from localStorage
+              </button>
+              {/* END TEMPORARY */}
+
+              {products.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
+                  <p>No products yet. Add one using the form above, or click <strong>Migrate Products</strong> if you have old data.</p>
+                </div>
+              ) : (
+                <div className="admin-products-grid">
+                  {products.map(product => (
+                    <div key={product.id} className="admin-product-card">
+                      <img src={product.image} alt={product.productName} />
+                      <div className="product-info">
+                        <h3>{product.productName}</h3>
+                        <p className="product-desc">{product.productDetails?.substring(0, 60)}...</p>
+                        <div className="price-info">
+                          {product.discount > 0 ? (
+                            <>
+                              <span className="original-price">₹{product.price}</span>
+                              <span className="discount">-{product.discount}%</span>
+                              <span className="final-price">₹{product.finalPrice}</span>
+                            </>
+                          ) : (
+                            <span className="final-price">₹{product.price}</span>
+                          )}
+                        </div>
+                        <div className="product-meta">
+                          <span className="category-badge">🏷️ {product.category || 'Uncategorized'}</span>
+                          <span className={`stock-badge ${product.stock > 0 ? 'in-stock' : 'out-of-stock'}`}>
+                            {product.stock > 0 ? `📦 ${product.stock} left` : '❌ Out of Stock'}
+                          </span>
+                          <span className="rating-badge">
+                            ⭐ {product.averageRating ? product.averageRating.toFixed(1) : 'No ratings'}
+                          </span>
+                        </div>
+                        <div className="social-links">
+                          {product.youtubeVideoId && <span className="youtube-icon">📺 Watch Video</span>}
+                          {product.instagramUrl && (
+                            <a href={product.instagramUrl} target="_blank" rel="noopener noreferrer" className="instagram-link">📸 Instagram</a>
+                          )}
+                        </div>
+                        <button onClick={() => openReviewModal(product.id)} className="view-reviews-btn">📝 Reviews ({product.reviews?.length || 0})</button>
                       </div>
-                      <div className="product-meta">
-                        <span className="category-badge">🏷️ {product.category || 'Uncategorized'}</span>
-                        <span className={`stock-badge ${product.stock > 0 ? 'in-stock' : 'out-of-stock'}`}>
-                          {product.stock > 0 ? `📦 ${product.stock} left` : '❌ Out of Stock'}
-                        </span>
-                        <span className="rating-badge">
-                          ⭐ {product.averageRating ? product.averageRating.toFixed(1) : 'No ratings'}
-                        </span>
+                      <div className="admin-actions">
+                        <button onClick={() => handleEdit(product)} className="edit-btn">✏️ Edit</button>
+                        <button onClick={() => handleDelete(product.id)} className="delete-btn">🗑️ Delete</button>
                       </div>
-                      <div className="social-links">
-                        {product.youtubeVideoId && <span className="youtube-icon">📺 Watch Video</span>}
-                        {product.instagramUrl && (
-                          <a href={product.instagramUrl} target="_blank" rel="noopener noreferrer" className="instagram-link">📸 Instagram</a>
-                        )}
-                      </div>
-                      <button onClick={() => openReviewModal(product.id)} className="view-reviews-btn">📝 Reviews ({product.reviews?.length || 0})</button>
                     </div>
-                    <div className="admin-actions">
-                      <button onClick={() => handleEdit(product)} className="edit-btn">✏️ Edit</button>
-                      <button onClick={() => handleDelete(product.id)} className="delete-btn">🗑️ Delete</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           </>
         )}
@@ -596,26 +719,11 @@ function AdminPanel({ onLogout }) {
         {activeTab === 'orders' && (
           <>
             <div className="orders-stats">
-              <div className="stat-card">
-                <span className="stat-label">Total Orders</span>
-                <span className="stat-value">{stats.total}</span>
-              </div>
-              <div className="stat-card pending">
-                <span className="stat-label">Pending</span>
-                <span className="stat-value">{stats.pending}</span>
-              </div>
-              <div className="stat-card confirmed">
-                <span className="stat-label">Confirmed</span>
-                <span className="stat-value">{stats.confirmed}</span>
-              </div>
-              <div className="stat-card delivered">
-                <span className="stat-label">Delivered</span>
-                <span className="stat-value">{stats.delivered}</span>
-              </div>
-              <div className="stat-card cancelled">
-                <span className="stat-label">Cancelled</span>
-                <span className="stat-value">{stats.cancelled}</span>
-              </div>
+              <div className="stat-card"><span className="stat-label">Total Orders</span><span className="stat-value">{stats.total}</span></div>
+              <div className="stat-card pending"><span className="stat-label">Pending</span><span className="stat-value">{stats.pending}</span></div>
+              <div className="stat-card confirmed"><span className="stat-label">Confirmed</span><span className="stat-value">{stats.confirmed}</span></div>
+              <div className="stat-card delivered"><span className="stat-label">Delivered</span><span className="stat-value">{stats.delivered}</span></div>
+              <div className="stat-card cancelled"><span className="stat-label">Cancelled</span><span className="stat-value">{stats.cancelled}</span></div>
             </div>
 
             <div className="order-dropdowns">
@@ -669,7 +777,7 @@ function AdminPanel({ onLogout }) {
                             <p><strong>Customer:</strong> {order.customerName || order.shippingDetails?.fullName || 'N/A'}</p>
                             <p><strong>Items:</strong> {order.items.map(item => item.productName).join(', ')}</p>
                             <p><strong>Total:</strong> ₹{order.totalAmount.toFixed(2)}</p>
-                            {order.statusUpdateDate ? new Date(order.statusUpdateDate.seconds * 1000).toLocaleString() : 'N/A'}
+                            {order.statusUpdateDate && <p><strong>Cancelled on:</strong> {formatDate(order.statusUpdateDate)}</p>}
                           </div>
                           <button className="revert-btn-small" onClick={() => updateOrderStatus(order.id, 'Confirmed')}>↩️ Revert to Confirmed</button>
                         </div>
@@ -704,7 +812,7 @@ function AdminPanel({ onLogout }) {
                           <span className={`order-status-badge ${order.status.toLowerCase()}`}>{order.status}</span>
                           {order.isGuest && <span className="guest-badge">🎭 Guest</span>}
                         </div>
-                        <div className="order-date">📅 {order.orderDate ? new Date(order.orderDate.seconds * 1000).toLocaleString() : 'Just now'}</div>
+                        <div className="order-date">📅 {formatDate(order.orderDate)}</div>
                       </div>
 
                       <div className="customer-info">
@@ -741,22 +849,14 @@ function AdminPanel({ onLogout }) {
                       <div className="order-actions">
                         {order.status === 'Pending' && (
                           <>
-                            <button className="confirm-btn-order" onClick={() => updateOrderStatus(order.id, 'Confirmed')}>
-                              ✅ Confirm Order
-                            </button>
-                            <button className="cancel-btn-order" onClick={() => updateOrderStatus(order.id, 'Cancelled')}>
-                              ❌ Cancel Order
-                            </button>
+                            <button className="confirm-btn-order" onClick={() => updateOrderStatus(order.id, 'Confirmed')}>✅ Confirm Order</button>
+                            <button className="cancel-btn-order" onClick={() => updateOrderStatus(order.id, 'Cancelled')}>❌ Cancel Order</button>
                           </>
                         )}
                         {order.status === 'Confirmed' && (
                           <>
-                            <button className="deliver-btn" onClick={() => updateOrderStatus(order.id, 'Delivered')}>
-                              🚚 Mark as Delivered
-                            </button>
-                            <button className="cancel-btn-order" onClick={() => updateOrderStatus(order.id, 'Cancelled')}>
-                              ❌ Cancel Order
-                            </button>
+                            <button className="deliver-btn" onClick={() => updateOrderStatus(order.id, 'Delivered')}>🚚 Mark as Delivered</button>
+                            <button className="cancel-btn-order" onClick={() => updateOrderStatus(order.id, 'Cancelled')}>❌ Cancel Order</button>
                           </>
                         )}
                         {order.status === 'Delivered' && (
@@ -767,17 +867,13 @@ function AdminPanel({ onLogout }) {
                                 <span className="delivered-date">📅 Delivered on: {new Date(order.deliveredDate).toLocaleString()}</span>
                               )}
                             </div>
-                            <button className="revert-btn" onClick={() => updateOrderStatus(order.id, 'Confirmed')}>
-                              ↩️ Revert to Confirmed
-                            </button>
+                            <button className="revert-btn" onClick={() => updateOrderStatus(order.id, 'Confirmed')}>↩️ Revert to Confirmed</button>
                           </>
                         )}
                         {order.status === 'Cancelled' && (
                           <>
                             <div className="cancelled-info"><span className="cancelled-badge">❌ Cancelled</span></div>
-                            <button className="revert-btn" onClick={() => updateOrderStatus(order.id, 'Confirmed')}>
-                              ↩️ Revert to Confirmed
-                            </button>
+                            <button className="revert-btn" onClick={() => updateOrderStatus(order.id, 'Confirmed')}>↩️ Revert to Confirmed</button>
                           </>
                         )}
                       </div>
