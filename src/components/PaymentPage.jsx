@@ -13,36 +13,11 @@ function PaymentPage({ cart, shippingDetails, onBack, onConfirmPurchase, custome
   const [couponMessage, setCouponMessage] = useState('');
   const [isApplying, setIsApplying] = useState(false);
   const [showCouponPopup, setShowCouponPopup] = useState(false);
-  const [availableCoupons, setAvailableCoupons] = useState([]);
-  const [showAvailable, setShowAvailable] = useState(false);
 
   const totalAmount = cart.reduce((sum, item) => sum + (item.finalPrice * item.quantity), 0);
   const [finalTotal, setFinalTotal] = useState(totalAmount);
 
-  // ---- Load available coupons (public preview) ----
-  const loadAvailableCoupons = async () => {
-    try {
-      const snap = await getDocs(collection(db, 'coupons'));
-      const list = snap.docs
-        .map(d => ({ id: d.id, ...d.data() }))
-        .filter(c =>
-          c.active !== false &&
-          (!c.expiry || new Date(c.expiry) > new Date()) &&
-          (Number(c.maxUses || 0) === 0 || Number(c.usedCount || 0) < Number(c.maxUses || 0))
-        );
-      setAvailableCoupons(list);
-      setShowAvailable(true);
-      if (list.length === 0) {
-        console.log('ℹ️ No active coupons found in Firestore.');
-      } else {
-        console.log('🎫 Available coupons:', list);
-      }
-    } catch (err) {
-      console.error('❌ Could not load coupons:', err);
-      alert('Could not load coupons. Check Firestore rules.\n' + err.message);
-    }
-  };
-
+  // ---- Apply coupon (manual entry only) ----
   const handleApplyCoupon = async () => {
     const code = couponCode.trim().toUpperCase();
     if (!code) {
@@ -53,17 +28,11 @@ function PaymentPage({ cart, shippingDetails, onBack, onConfirmPurchase, custome
     setCouponMessage('');
 
     try {
-      // ⚠️ NO .where() query — fetch everything and filter in JS.
-      // This avoids ALL Firestore rule/index issues.
-      console.log('🔍 Fetching coupons from Firestore...');
       const allSnap = await getDocs(collection(db, 'coupons'));
-      console.log('📦 Total coupons in DB:', allSnap.size);
-
       const allCoupons = allSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-      allCoupons.forEach(c => console.log('  •', c.id, '→', c));
 
       if (allCoupons.length === 0) {
-        setCouponMessage('❌ No coupons available. Ask admin to create one.');
+        setCouponMessage('❌ Invalid coupon code');
         setIsApplying(false);
         return;
       }
@@ -78,8 +47,6 @@ function PaymentPage({ cart, shippingDetails, onBack, onConfirmPurchase, custome
         return;
       }
 
-      console.log('✅ Matched coupon:', coupon);
-
       // Active check (missing/undefined = active)
       if (coupon.active === false) {
         setCouponMessage('❌ This coupon is inactive');
@@ -89,7 +56,7 @@ function PaymentPage({ cart, shippingDetails, onBack, onConfirmPurchase, custome
 
       // Expiry check
       if (coupon.expiry && new Date(coupon.expiry) < new Date()) {
-        setCouponMessage('❌ Coupon has expired on ' + new Date(coupon.expiry).toLocaleDateString());
+        setCouponMessage('❌ Coupon has expired');
         setIsApplying(false);
         return;
       }
@@ -97,7 +64,7 @@ function PaymentPage({ cart, shippingDetails, onBack, onConfirmPurchase, custome
       // Minimum order check
       const minOrder = Number(coupon.minOrder || 0);
       if (totalAmount < minOrder) {
-        setCouponMessage(`❌ Minimum order ₹${minOrder} required (your cart: ₹${totalAmount.toFixed(2)})`);
+        setCouponMessage(`❌ Minimum order ₹${minOrder} required`);
         setIsApplying(false);
         return;
       }
@@ -134,11 +101,10 @@ function PaymentPage({ cart, shippingDetails, onBack, onConfirmPurchase, custome
       setAppliedCoupon(coupon);
       setCouponMessage('');
       setShowCouponPopup(true);
-      setShowAvailable(false);
       setTimeout(() => setShowCouponPopup(false), 4000);
     } catch (err) {
       console.error('❌ Coupon apply error:', err);
-      setCouponMessage('❌ Error: ' + (err.code || '') + ' ' + (err.message || 'Try again'));
+      setCouponMessage('❌ Error applying coupon. Please try again.');
     }
     setIsApplying(false);
   };
@@ -209,7 +175,7 @@ function PaymentPage({ cart, shippingDetails, onBack, onConfirmPurchase, custome
           </div>
         </div>
 
-        {/* Coupon Section */}
+        {/* Coupon Section — manual entry only */}
         <div className="coupon-section">
           <h3>🎫 Apply Coupon</h3>
 
@@ -233,36 +199,6 @@ function PaymentPage({ cart, shippingDetails, onBack, onConfirmPurchase, custome
               <button onClick={handleRemoveCoupon} className="remove-coupon-btn">Remove</button>
             )}
           </div>
-
-          {!appliedCoupon && (
-            <button
-              type="button"
-              onClick={loadAvailableCoupons}
-              className="view-coupons-btn"
-            >
-              👀 View available coupons
-            </button>
-          )}
-
-          {showAvailable && availableCoupons.length > 0 && (
-            <div className="available-coupons-list">
-              <p className="available-title">🎁 Tap a coupon to apply:</p>
-              {availableCoupons.map(c => (
-                <button
-                  key={c.id}
-                  type="button"
-                  className="available-coupon-chip"
-                  onClick={() => { setCouponCode(c.code); setShowAvailable(false); }}
-                >
-                  <span className="chip-code">{c.code}</span>
-                  <span className="chip-info">
-                    {c.discountType === 'percentage' ? `${c.discountValue}% off` : `₹${c.discountValue} off`}
-                    {' • Min ₹'}{c.minOrder}
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
 
           {couponMessage && (
             <span className={`coupon-message ${couponMessage.startsWith('✅') ? 'success' : 'error'}`}>
